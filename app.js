@@ -302,7 +302,7 @@ function viewNazicht() {
       ${resultaatKnoppen(p)}
       ${p.resultaat === "herstel" ? `<form class="herstel" data-herstel-form><label class="lbl" for="h-${p.id}">Wat moet vervangen of hersteld worden?</label>
         <textarea id="h-${p.id}" data-herstel="${p.id}" placeholder="bv. rem links vervangen, voetsteun rechts los">${esc(p.opmerkingen)}</textarea>
-        <span class="meta">Wordt bewaard zodra je verder tikt.</span></form>` : ""}
+        <span class="meta">Wordt vanzelf bewaard terwijl je typt.</span></form>` : ""}
       <div class="actions" style="justify-content:flex-end">${conf
         ? `<span class="muted" style="align-self:center">Toestel uit dit nazicht verwijderen?</span><button class="btn small danger" data-del-item="${p.id}">Ja, verwijderen</button><button class="btn small" data-confirm="">Nee</button>`
         : `${(p.resultaat === "afgekeurd" || p.resultaat === "niet-gevonden") && t && !t.uitDienst ? `<button class="btn small" data-uit-dienst="${t.id}" data-waarde="1" title="Komt dan niet meer in het volgende nazicht">Uit dienst zetten</button>` : ""}
@@ -702,12 +702,13 @@ function herbereken() {
   toestellen = d.vigo_toestellen.map(toestelRij); nazichten = d.vigo_nazichten.map(nazichtRij); items = d.vigo_nazicht_toestellen.map(itemRij);
 }
 
-async function wacht(lijst, okMsg) {
+// "stil": niet opnieuw tekenen, bv. terwijl iemand nog in een tekstvak typt.
+async function wacht(lijst, okMsg, { stil = false } = {}) {
   lijst = lijst.map(it => ({ ...it, k: laatsteK = Math.max(Date.now(), laatsteK + 1) }));
   try { await idb("readwrite", st => { lijst.forEach(it => st.put(it)); }); }
   catch (e) { console.error(e); }   // geen IndexedDB (bv. privévenster): de wachtrij staat enkel in het geheugen
   wachtrij.push(...lijst);
-  herbereken(); render();
+  herbereken(); if (!stil) render();
   if (okMsg) toast(navigator.onLine && !geenVerbinding ? okMsg : "Bewaard op dit toestel; wordt verstuurd zodra er verbinding is");
   verstuur();
 }
@@ -872,17 +873,27 @@ document.addEventListener("submit", async e => {
   }
 });
 
-document.addEventListener("input", e => { if (e.target.id === "plak-tekst") toonPlakVoorbeeld(); });
+document.addEventListener("input", e => {
+  if (e.target.id === "plak-tekst") toonPlakVoorbeeld();
+  // Herstelvak: al tijdens het typen bewaren, zodat niets verloren gaat als je de app sluit zonder verder te tikken.
+  if (e.target.dataset.herstel) { const vak = e.target; clearTimeout(vak.wacht); vak.wacht = setTimeout(() => bewaarHerstel(vak, false), 800); }
+});
+function bewaarHerstel(vak, melden) {
+  clearTimeout(vak.wacht);
+  const p = items.find(x => x.id === vak.dataset.herstel), tekst = vak.value.trim();
+  if (!p || tekst === p.opmerkingen) return;
+  return wacht([{ actie: "update", tabel: "vigo_nazicht_toestellen", id: p.id, data: { opmerkingen: tekst } }], melden ? "Opgeslagen" : "", { stil: document.activeElement === vak });
+}
+// App naar de achtergrond of gesloten terwijl je nog typt: meteen bewaren.
+const bewaarOpenVak = () => { const a = document.activeElement; if (a && a.dataset && a.dataset.herstel) bewaarHerstel(a, false); };
+document.addEventListener("visibilitychange", () => { if (document.hidden) bewaarOpenVak(); });
+addEventListener("pagehide", bewaarOpenVak);
 
 document.addEventListener("change", async e => {
   const t = e.target;
   if (t.id === "plak-soort" || t.id === "plak-vervang") { toonPlakVoorbeeld(); return; }
   if ("toonUit" in t.dataset) { state.uitDienst = t.checked; render(); return; }
-  if (t.dataset.herstel) {
-    const p = items.find(x => x.id === t.dataset.herstel), tekst = t.value.trim();
-    if (p && tekst !== p.opmerkingen) await wacht([{ actie: "update", tabel: "vigo_nazicht_toestellen", id: p.id, data: { opmerkingen: tekst } }], "Opgeslagen");
-    return;
-  }
+  if (t.dataset.herstel) { await bewaarHerstel(t, true); return; }
   if (!t.dataset.fotoInput) return;
   const pre = t.dataset.fotoInput, files = [...(t.files || [])];
   if (!files.length) return;
