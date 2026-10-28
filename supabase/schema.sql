@@ -29,6 +29,7 @@ create table if not exists public.vigo_toestellen (
   aangemaakt timestamptz not null default now(),
   aangemaakt_door uuid default auth.uid()
 );
+alter table public.vigo_toestellen add column if not exists serienummer text not null default '';
 create index if not exists vigo_toestellen_site_idx on public.vigo_toestellen(site, soort);
 
 -- Een nazicht: VIGO komt één keer per jaar langs op een site.
@@ -60,6 +61,7 @@ create table if not exists public.vigo_nazicht_toestellen (
   aangemaakt timestamptz not null default now(),
   aangemaakt_door uuid default auth.uid()
 );
+alter table public.vigo_nazicht_toestellen add column if not exists serienummer text not null default '';
 create index if not exists vigo_nazicht_toestellen_nazicht_idx on public.vigo_nazicht_toestellen(nazicht_id, volgorde);
 
 alter table public.vigo_toestellen enable row level security;

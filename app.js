@@ -22,9 +22,9 @@ const RESULTATEN = [
 const BUCKET = "vigo-fotos";
 
 let sb = null, sessie = null, ready = false;
-let toestellen = [];  // inventaris: {id, site, soort, nummer, merk, afdeling, omschrijving, foto, foto2, uitDienst}
+let toestellen = [];  // inventaris: {id, site, soort, nummer, merk, serienummer, afdeling, omschrijving, foto, foto2, uitDienst}
 let nazichten = [];   // {id, site, datum, aangemaakt}
-let items = [];       // toestellen in een nazicht: {id, nazichtId, toestelId, volgorde, soort, nummer, merk, afdeling, omschrijving, resultaat, opmerkingen, fotos[]}
+let items = [];       // toestellen in een nazicht: {id, nazichtId, toestelId, volgorde, soort, nummer, merk, serienummer, afdeling, omschrijving, resultaat, opmerkingen, fotos[]}
 let state = { view: "sites", site: null, nazicht: null, filter: "alle", soort: "alle", edit: null, confirm: null, editNazicht: false, plakken: false, nieuwToestel: false, uitDienst: false };
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -48,7 +48,7 @@ const itemsVan = nazichtId => items.filter(p => p.nazichtId === nazichtId).sort(
 const nagekeken = p => !!resultaatVan(p.resultaat);
 const aandacht = p => !!(resultaatVan(p.resultaat) || {}).aandacht;
 const naam = p => [p.nummer ? `Nr. ${p.nummer}` : "", p.merk].filter(Boolean).join(" · ") || "(geen nummer)";
-const plaats = p => [p.afdeling, p.omschrijving].filter(Boolean).join(" · ");
+const plaats = p => [p.afdeling, p.serienummer ? `Serienr. ${p.serienummer}` : "", p.omschrijving].filter(Boolean).join(" · ");
 // Een toestel heeft tot 2 foto's (kolommen foto en foto2), zodat je het herkent.
 const MAX_TOESTEL_FOTOS = 2;
 const toestelFotos = v => v ? [v.foto, v.foto2].filter(Boolean) : [];
@@ -178,6 +178,7 @@ function toestelForm(p, pre) {
       <div class="field" style="flex-basis:150px"><label class="lbl" for="${pre}-soort">Soort</label><select id="${pre}-soort">${SOORTEN.map(s => `<option value="${s.id}" ${e.soort === s.id ? "selected" : ""}>${esc(s.naam)}</option>`).join("")}</select></div>
       <div class="field" style="flex-basis:140px"><label class="lbl" for="${pre}-nummer">Nummer</label><input type="text" id="${pre}-nummer" value="${esc(e.nummer)}" placeholder="bv. RS-012"></div>
       <div class="field"><label class="lbl" for="${pre}-merk">Merk en type</label><input type="text" id="${pre}-merk" value="${esc(e.merk)}" placeholder="bv. Invacare Action 3"></div>
+      <div class="field"><label class="lbl" for="${pre}-serienummer">Serienummer</label><input type="text" id="${pre}-serienummer" value="${esc(e.serienummer)}" placeholder="bv. 1234567890"></div>
       <div class="field"><label class="lbl" for="${pre}-afdeling">Afdeling</label><input type="text" id="${pre}-afdeling" value="${esc(e.afdeling)}" placeholder="bv. STE"></div>
       <div class="field wide"><label class="lbl" for="${pre}-omschrijving">Omschrijving</label><input type="text" id="${pre}-omschrijving" value="${esc(e.omschrijving)}" placeholder="bv. blauw, met beensteunen, staat in de berging"></div>
       ${p ? `<div class="field wide"><span class="lbl">Foto's van het toestel (maximaal ${MAX_TOESTEL_FOTOS})</span>
@@ -195,18 +196,19 @@ function leesToestelForm(pre) {
     soort: $(`#${pre}-soort`).value,
     nummer: $(`#${pre}-nummer`).value.trim(),
     merk: $(`#${pre}-merk`).value.trim(),
+    serienummer: $(`#${pre}-serienummer`).value.trim(),
     afdeling: $(`#${pre}-afdeling`).value.trim(),
     omschrijving: $(`#${pre}-omschrijving`).value.trim(),
   };
 }
-const leegToestel = d => !d.nummer && !d.merk && !d.omschrijving;
+const leegToestel = d => !d.nummer && !d.merk && !d.serienummer && !d.omschrijving;
 
 function viewInventaris(s) {
   const alle = toestellenVan(s, true), actief = alle.filter(t => !t.uitDienst), nUit = alle.length - actief.length;
   if (state.plakken) return `<form class="panel" id="form-plak">
       <h3>Toestellen plakken uit Excel</h3>
       <p class="muted" style="margin:0">Selecteer in Excel de rijen met de toestellen, samen met de kolomtitels, kopieer ze en plak ze hieronder.
-        Herkende kolommen: Soort, Nummer, Merk/type, Afdeling en Omschrijving. Een nummer dat al in de inventaris staat, wordt overgeslagen.</p>
+        Herkende kolommen: Soort, Nummer, Merk/type, Serienummer, Afdeling en Omschrijving. Een nummer dat al in de inventaris staat, wordt overgeslagen.</p>
       <div class="row"><div class="field" style="flex:0 1 260px"><label class="lbl" for="plak-soort">Soort als die niet in de rij staat</label>
         <select id="plak-soort">${SOORTEN.map(so => `<option value="${so.id}" ${state.soort === so.id ? "selected" : ""}>${esc(so.naam)}</option>`).join("")}</select></div></div>
       <div class="field wide"><label class="lbl" for="plak-tekst">Geplakt uit Excel</label><textarea id="plak-tekst" style="min-height:140px;font-family:ui-monospace,monospace;font-size:.85rem" placeholder="Plak hier (Ctrl+V)"></textarea></div>
@@ -367,16 +369,16 @@ function toestellenUitPlak(tekst, standaardSoort) {
   const soort = zoek(/soort|hulpmiddel|toestel/);
   const kol = {
     soort,
-    nummer: zoek(/nummer|^nr|inventaris|code|^id\b|serie/),
+    serienummer: zoek(/serie|^sn\b|s\/n/),
     merk: zoek(/merk|model|type/, [soort]),
     afdeling: zoek(/afdeling|gebouw|zone|dienst|locatie|plaats/),
     omschrijving: zoek(/omschrijving|opmerking|kleur|kamer|info|beschrijving/),
   };
-  if (kol.nummer < 0 && kol.merk < 0 && kol.omschrijving < 0) return { toestellen: [], fout: "Geen kolom Nummer, Merk of Omschrijving gevonden. Kopieer ook de rij met de kolomtitels." };
+  if (kol.nummer < 0 && kol.merk < 0 && kol.serienummer < 0 && kol.omschrijving < 0) return { toestellen: [], fout: "Geen kolom Nummer, Merk, Serienummer of Omschrijving gevonden. Kopieer ook de rij met de kolomtitels." };
   const cel = (r, i) => i >= 0 ? (r[i] || "") : "";
   const lijst = rijen.slice(1).map(r => ({
     soort: (SOORTEN.find(so => so.kop.test(cel(r, kol.soort))) || { id: standaardSoort }).id,
-    nummer: cel(r, kol.nummer), merk: cel(r, kol.merk), afdeling: cel(r, kol.afdeling), omschrijving: cel(r, kol.omschrijving),
+    nummer: cel(r, kol.nummer), merk: cel(r, kol.merk), serienummer: cel(r, kol.serienummer), afdeling: cel(r, kol.afdeling), omschrijving: cel(r, kol.omschrijving),
   })).filter(t => !leegToestel(t));
   return { toestellen: lijst, fout: "" };
 }
@@ -388,8 +390,8 @@ function toonPlakVoorbeeld() {
   if (fout) { el.innerHTML = `<div class="banner">${esc(fout)}</div>`; return; }
   const vervang = $("#plak-vervang") && $("#plak-vervang").checked, oud = vervang ? [] : toestellenVan(state.site, true);
   el.innerHTML = ts.length ? `<div style="display:grid;gap:6px"><span class="lbl">Voorbeeld: ${ts.length} toestellen${ts.some(t => bestaatAl(t, oud)) ? `, waarvan ${ts.filter(t => bestaatAl(t, oud)).length} al in de inventaris (overgeslagen)` : ""}</span>
-    <div class="tabel-wrap"><table><thead><tr><th>Soort</th><th>Nummer</th><th>Merk en type</th><th>Afdeling</th><th>Omschrijving</th></tr></thead>
-    <tbody>${ts.map(t => `<tr${bestaatAl(t, oud) ? ' class="muted" style="text-decoration:line-through"' : ""}><td>${esc(soortVan(t.soort).naam)}</td><td>${esc(t.nummer)}</td><td>${esc(t.merk)}</td><td>${esc(t.afdeling)}</td><td>${esc(t.omschrijving)}</td></tr>`).join("")}</tbody></table></div></div>` : "";
+    <div class="tabel-wrap"><table><thead><tr><th>Soort</th><th>Nummer</th><th>Merk en type</th><th>Serienummer</th><th>Afdeling</th><th>Omschrijving</th></tr></thead>
+    <tbody>${ts.map(t => `<tr${bestaatAl(t, oud) ? ' class="muted" style="text-decoration:line-through"' : ""}><td>${esc(soortVan(t.soort).naam)}</td><td>${esc(t.nummer)}</td><td>${esc(t.merk)}</td><td>${esc(t.serienummer)}</td><td>${esc(t.afdeling)}</td><td>${esc(t.omschrijving)}</td></tr>`).join("")}</tbody></table></div></div>` : "";
 }
 
 /* ---------- Foto's (Supabase Storage, bucket "vigo-fotos") ---------- */
@@ -497,8 +499,8 @@ async function exporteerNazicht(nazichtId) {
   try { ExcelJS = await laadExcelJS(); } catch { toast("Excel-export kon niet geladen worden. Controleer je internetverbinding."); return; }
   const lijst = itemsVan(r.id);
   const nFoto = Math.min(MAX_FOTOS_EXCEL, Math.max(0, ...lijst.map(p => p.fotos.length)));
-  const kolommen = [["Nr", 5], ["Soort", 11], ["Nummer", 12], ["Merk en type", 22], ["Afdeling", 14], ["Omschrijving", 28], ["Resultaat", 15], ["Opmerkingen", 36]];
-  const opmKol = kolommen.length, resKol = 7;
+  const kolommen = [["Nr", 5], ["Soort", 11], ["Nummer", 12], ["Merk en type", 22], ["Serienummer", 16], ["Afdeling", 14], ["Omschrijving", 28], ["Resultaat", 15], ["Opmerkingen", 36]];
+  const opmKol = kolommen.length, resKol = 8;
   const nTst = Math.max(0, ...lijst.map(p => fotosVanItem(p).length));
   for (let i = 0; i < nTst; i++) kolommen.push([nTst === 1 ? "Foto toestel" : `Foto toestel ${i + 1}`, 24]);
   for (let i = 0; i < nFoto; i++) kolommen.push([nFoto === 1 ? "Foto nazicht" : `Foto nazicht ${i + 1}`, 24]);
@@ -518,7 +520,7 @@ async function exporteerNazicht(nazichtId) {
 
   for (let i = 0; i < lijst.length; i++) {
     const p = lijst[i], rijNr = KOP + 1 + i, rij = ws.getRow(rijNr), res = resultaatVan(p.resultaat);
-    const waarden = [i + 1, soortVan(p.soort).naam, p.nummer, p.merk, p.afdeling, p.omschrijving, res ? res.naam : "Niet nagekeken"];
+    const waarden = [i + 1, soortVan(p.soort).naam, p.nummer, p.merk, p.serienummer, p.afdeling, p.omschrijving, res ? res.naam : "Niet nagekeken"];
     waarden.push(p.fotos.length > nFoto ? [p.opmerkingen, `(+${p.fotos.length - nFoto} foto's in de app)`].filter(Boolean).join("\n") : p.opmerkingen);
     for (let k = 0; k < nTst + nFoto; k++) waarden.push("");
     rij.values = waarden;
@@ -578,7 +580,7 @@ async function exporteerInventaris(site) {
   let ExcelJS;
   try { ExcelJS = await laadExcelJS(); } catch { toast("Excel-export kon niet geladen worden. Controleer je internetverbinding."); return; }
   const lijst = toestellenVan(site), laatste = laatsteResultaten();
-  const kolommen = [["Nr", 5], ["Soort", 11], ["Nummer", 12], ["Merk en type", 24], ["Afdeling", 14], ["Omschrijving", 32], ["Laatste nazicht", 14], ["Resultaat", 15]];
+  const kolommen = [["Nr", 5], ["Soort", 11], ["Nummer", 12], ["Merk en type", 24], ["Serienummer", 16], ["Afdeling", 14], ["Omschrijving", 32], ["Laatste nazicht", 14], ["Resultaat", 15]];
   const fotoKol = kolommen.length, nTst = Math.max(0, ...lijst.map(p => toestelFotos(p).length));
   for (let i = 0; i < nTst; i++) kolommen.push([nTst === 1 ? "Foto" : `Foto ${i + 1}`, 24]);
   const n = kolommen.length;
@@ -595,7 +597,7 @@ async function exporteerInventaris(site) {
   const rand = { style: "thin", color: { argb: XL.rand } };
   for (let i = 0; i < lijst.length; i++) {
     const p = lijst[i], rijNr = KOP + 1 + i, rij = ws.getRow(rijNr), l = laatste.get(p.id);
-    rij.values = [i + 1, soortVan(p.soort).naam, p.nummer, p.merk, p.afdeling, p.omschrijving, l ? fmtDate(l.datum) : "", l ? resultaatVan(l.resultaat).naam : "", ...Array(nTst).fill("")];
+    rij.values = [i + 1, soortVan(p.soort).naam, p.nummer, p.merk, p.serienummer, p.afdeling, p.omschrijving, l ? fmtDate(l.datum) : "", l ? resultaatVan(l.resultaat).naam : "", ...Array(nTst).fill("")];
     rij.eachCell({ includeEmpty: true }, cel => {
       cel.alignment = { vertical: "top", horizontal: "left", wrapText: true };
       cel.border = { top: rand, bottom: rand, left: rand, right: rand };
@@ -611,14 +613,14 @@ async function exporteerInventaris(site) {
 }
 
 /* ---------- Opslag (Supabase) ---------- */
-const toestelRij = r => ({ id: r.id, site: r.site, soort: r.soort, nummer: r.nummer || "", merk: r.merk || "", afdeling: r.afdeling || "",
+const toestelRij = r => ({ id: r.id, site: r.site, soort: r.soort, nummer: r.nummer || "", merk: r.merk || "", serienummer: r.serienummer || "", afdeling: r.afdeling || "",
   omschrijving: r.omschrijving || "", foto: r.foto || null, foto2: r.foto2 || null, uitDienst: !!r.uit_dienst });
 const nazichtRij = r => ({ id: r.id, site: r.site, datum: r.datum, aangemaakt: r.aangemaakt });
 const itemRij = r => ({ id: r.id, nazichtId: r.nazicht_id, toestelId: r.toestel_id || null, volgorde: r.volgorde || 0, soort: r.soort, nummer: r.nummer || "",
-  merk: r.merk || "", afdeling: r.afdeling || "", omschrijving: r.omschrijving || "", resultaat: r.resultaat || "",
+  merk: r.merk || "", serienummer: r.serienummer || "", afdeling: r.afdeling || "", omschrijving: r.omschrijving || "", resultaat: r.resultaat || "",
   opmerkingen: r.opmerkingen || "", fotos: Array.isArray(r.fotos) ? r.fotos : [] });
 // Kopie van een toestel in een nazicht: latere wijzigingen aan de inventaris veranderen oude nazichten niet.
-const kopie = t => ({ toestel_id: t.id, soort: t.soort, nummer: t.nummer, merk: t.merk, afdeling: t.afdeling, omschrijving: t.omschrijving });
+const kopie = t => ({ toestel_id: t.id, soort: t.soort, nummer: t.nummer, merk: t.merk, serienummer: t.serienummer, afdeling: t.afdeling, omschrijving: t.omschrijving });
 
 // Supabase geeft max. 1000 rijen per keer terug; haal alles op in stukken.
 async function selectAlles(tabel) {
@@ -799,7 +801,7 @@ document.addEventListener("submit", async e => {
     if (ok) { state.plakken = false; render(); }
   } else if (f.id === "form-toestel") {
     const d = leesToestelForm("n");
-    if (leegToestel(d)) { $("#n-nummer").focus(); toast("Vul een nummer, merk of omschrijving in"); return; }
+    if (leegToestel(d)) { $("#n-nummer").focus(); toast("Vul een nummer, merk, serienummer of omschrijving in"); return; }
     knop.disabled = true;
     const ok = await write(() => sb.from("vigo_toestellen").insert({ id: crypto.randomUUID(), site: state.site, ...d }), "Toestel toegevoegd");
     knop.disabled = false;
@@ -807,7 +809,7 @@ document.addEventListener("submit", async e => {
   } else if (f.dataset.toestelForm) {
     const id = f.dataset.toestelForm, oud = toestellen.find(p => p.id === id); if (!oud) return;
     const d = leesToestelForm("e");
-    if (leegToestel(d)) { $("#e-nummer").focus(); toast("Vul een nummer, merk of omschrijving in"); return; }
+    if (leegToestel(d)) { $("#e-nummer").focus(); toast("Vul een nummer, merk, serienummer of omschrijving in"); return; }
     knop.disabled = true;
     const nieuw = await uploadNieuw("e", `${oud.site}/toestellen`, id);
     if (!nieuw) { knop.disabled = false; toast("De foto kon niet opgeslagen worden. Probeer opnieuw."); return; }
@@ -841,7 +843,7 @@ document.addEventListener("submit", async e => {
   } else if (f.id === "form-extra") {
     const r = nazichten.find(x => x.id === state.nazicht); if (!r) return;
     const d = leesToestelForm("x");
-    if (leegToestel(d)) { $("#x-nummer").focus(); toast("Vul een nummer, merk of omschrijving in"); return; }
+    if (leegToestel(d)) { $("#x-nummer").focus(); toast("Vul een nummer, merk, serienummer of omschrijving in"); return; }
     const t = { id: crypto.randomUUID(), site: r.site, ...d };
     const volgorde = Math.max(-1, ...itemsVan(r.id).map(p => p.volgorde)) + 1;
     f.reset();
