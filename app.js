@@ -742,6 +742,8 @@ function verstuur() {
     }
     versturen = null; laatsteFout = fout;
     if (fout && netwerkFout(fout)) geenVerbinding = true;
+    // Geen verbindingsprobleem maar toch geweigerd: toon de reden, anders blijft de wachtrij onzichtbaar hangen.
+    else if (fout) banner(`${wachtrij.length} ${wachtrij.length === 1 ? "wijziging kon" : "wijzigingen konden"} niet verstuurd worden: ${[fout.message || fout.error || String(fout), fout.code || fout.statusCode].filter(Boolean).join(" · ")}. Ze blijven bewaard op dit toestel en de app probeert het opnieuw. Stuur deze melding door als ze blijft staan.`);
     zetSync();
     if (!fout) await laadAlles();
   })();
