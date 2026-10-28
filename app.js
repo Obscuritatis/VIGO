@@ -9,6 +9,7 @@ const SITES = [
 const SOORTEN = [
   { id: "rolstoel", naam: "Rolstoel", meervoud: "Rolstoelen", kop: /rolstoel/i },
   { id: "rollator", naam: "Rollator", meervoud: "Rollators", kop: /rollator/i },
+  { id: "looprek", naam: "Looprek", meervoud: "Looprekken", kop: /looprek|loophulp|walker/i },
   { id: "kruk", naam: "Kruk", meervoud: "Krukken", kop: /kruk/i },
 ];
 // Uitkomst van het nazicht door VIGO per toestel. "aandacht": er moet nog iets mee gebeuren.
@@ -134,7 +135,7 @@ function viewSites() {
       ${ns.length ? `<div class="stats">${volgendNazicht(s.id)}</div>` : ""}`}
     </button>`;
   }).join("");
-  return `<div style="display:grid;gap:12px"><p class="muted" style="margin:0">Kies een site om de rolstoelen, rollators en krukken bij te houden of het jaarlijkse nazicht door VIGO in te vullen.</p><div class="sites">${cards}</div></div>`;
+  return `<div style="display:grid;gap:12px"><p class="muted" style="margin:0">Kies een site om de rolstoelen, rollators, looprekken en krukken bij te houden of het jaarlijkse nazicht door VIGO in te vullen.</p><div class="sites">${cards}</div></div>`;
 }
 
 function fotoDuims(paden, alt) {

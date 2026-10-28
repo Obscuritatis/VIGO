@@ -1,4 +1,4 @@
--- Nazicht VIGO: inventaris van rolstoelen, rollators en krukken per site, de jaarlijkse nazichten,
+-- Nazicht VIGO: inventaris van rolstoelen, rollators, looprekken en krukken per site, de jaarlijkse nazichten,
 -- toegangsregels en fotobucket.
 -- Draait in hetzelfde Supabase-project als de veiligheidsrondes en de staalnamen en raakt die gegevens niet aan.
 -- Het gebruikt wel de bestaande toegangslijst "toegang" en de functie heeft_toegang() van de
@@ -12,7 +12,7 @@ do $$ begin
   end if;
 end $$;
 
--- Inventaris per site. "soort": rolstoel, rollator of kruk.
+-- Inventaris per site. "soort": rolstoel, rollator, looprek of kruk.
 -- "foto" en "foto2": tot 2 foto's van het toestel, zodat je het herkent.
 -- "uit_dienst": afgekeurd of weg; komt niet meer in een nieuw nazicht, maar blijft in oude nazichten staan.
 create table if not exists public.vigo_toestellen (

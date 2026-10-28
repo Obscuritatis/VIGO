@@ -1,6 +1,6 @@
 # Nazicht VIGO
 
-Webapp om per site de rolstoelen, rollators en krukken bij te houden die VIGO één keer per jaar nakijkt.
+Webapp om per site de rolstoelen, rollators, looprekken en krukken bij te houden die VIGO één keer per jaar nakijkt.
 Per site staat een **inventaris** van de toestellen (soort, nummer, merk en type, serienummer, afdeling, omschrijving, tot 2 foto's).
 Komt VIGO langs, dan start je een **nieuw nazicht**: dat krijgt alle toestellen die in dienst zijn. Per toestel tik je het
 resultaat aan (*In orde*, *Hersteld*, *Herstel nodig*, *Afgekeurd* of *Niet gevonden*) en vul je zo nodig opmerkingen en
