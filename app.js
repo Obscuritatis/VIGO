@@ -152,14 +152,14 @@ function viewSite() {
   const s = state.site;
   const ts = toestellenVan(s), ns = nazichtenVan(s);
   const lijst = ns.map(n => `<button class="ronde" data-go-nazicht="${n.id}"><span class="date">${fmtDate(n.datum)}</span><span class="stats">${voortgang(itemsVan(n.id))}</span></button>`).join("");
-  const nieuw = ts.length
-    ? `<form class="panel" id="form-nazicht"><h3>Nieuw nazicht door VIGO</h3>
-        <p class="muted" style="margin:0">Het nazicht krijgt de ${ts.length} toestellen uit de inventaris hieronder (${SOORTEN.map(so => aantal(ts.filter(t => t.soort === so.id).length, so)).join(", ")}).</p>
+  const nieuw = `<form class="panel" id="form-nazicht"><h3>Nieuw nazicht door VIGO</h3>
+        <p class="muted" style="margin:0">${ts.length
+          ? `Het nazicht krijgt de ${ts.length} toestellen uit de inventaris hieronder (${SOORTEN.map(so => aantal(ts.filter(t => t.soort === so.id).length, so)).join(", ")}). Toestellen die VIGO onderweg vindt, voeg je in het nazicht toe.`
+          : "De inventaris is nog leeg. Start het nazicht en voeg de toestellen toe terwijl je met VIGO rondgaat: ze komen meteen ook in de inventaris."}</p>
         <div class="row">
           <div class="field" style="flex:0 1 180px"><label class="lbl" for="r-datum">Datum</label><input type="date" id="r-datum" required value="${today()}"></div>
           <button class="btn primary" type="submit">Start nazicht</button>
-        </div></form>`
-    : `<div class="panel"><h3>Nieuw nazicht door VIGO</h3><p style="margin:0">De inventaris is nog leeg. Plak de toestellen eerst hieronder vanuit Excel of voeg ze één voor één toe.</p></div>`;
+        </div></form>`;
   return `<div style="display:grid;gap:20px">
     ${crumbs(["Alle sites", "data-go-sites"], [siteNaam(s)])}
     <div class="head"><h2>${esc(siteNaam(s))}</h2><div class="stats">${volgendNazicht(s)}</div></div>
@@ -323,6 +323,11 @@ function viewNazicht() {
       </div>`;
   const telling = RESULTATEN.map(x => [x, all.filter(p => p.resultaat === x.id).length]).filter(([, n]) => n)
     .map(([x, n]) => `<span class="pill ${x.klasse}">${esc(x.naam)}: ${n}</span>`).join("");
+  const extra = `<form class="panel" id="form-extra"><h3>Toestel toevoegen</h3>
+      <p class="muted" style="margin:0">Een toestel dat nog niet in de lijst staat, voeg je hier toe. Het komt in dit nazicht én in de inventaris van de site. Soort en afdeling blijven staan voor het volgende toestel.</p>
+      ${toestelForm(null, "x")}
+      <div class="actions" style="justify-content:flex-end"><button class="btn primary" type="submit">Toevoegen</button></div>
+    </form>`;
   const af = siteVan(r.site).afkortingen;
   return `<div style="display:grid;gap:20px">
     ${crumbs(["Alle sites", "data-go-sites"], [siteNaam(r.site), `data-go-site="${esc(r.site)}"`], [fmtDate(r.datum)])}
@@ -332,13 +337,10 @@ function viewNazicht() {
       <div class="head"><h3>Toestellen</h3><div class="filters">${filt}</div></div>
       <div class="filters">${soortFilter(all)}</div>
       ${af ? `<p class="muted" style="margin:0">${esc(af)}</p>` : ""}
-      ${shown.length ? `<div class="list">${list}</div>` : `<div class="empty">${all.length ? (state.filter === "te-doen" ? "Alle toestellen zijn nagekeken." : "Geen toestellen in deze selectie.") : "Dit nazicht heeft geen toestellen."}</div>`}
+      ${shown.length ? `<div class="list">${list}</div>` : `<div class="empty">${all.length ? (state.filter === "te-doen" ? "Alle toestellen zijn nagekeken." : "Geen toestellen in deze selectie.") : "Nog geen toestellen in dit nazicht. Voeg ze hieronder toe terwijl je rondgaat."}</div>`}
+      ${all.length ? "" : extra}
     </div>
-    <form class="panel" id="form-extra"><h3>Toestel dat niet in de lijst staat</h3>
-      <p class="muted" style="margin:0">VIGO vond een toestel dat nog niet in de inventaris stond? Voeg het hier toe: het komt in dit nazicht én in de inventaris van de site.</p>
-      ${toestelForm(null, "x")}
-      <div class="actions" style="justify-content:flex-end"><button class="btn" type="submit">Toevoegen</button></div>
-    </form>
+    ${all.length ? extra : ""}
   </div>`;
 }
 
@@ -828,12 +830,12 @@ document.addEventListener("submit", async e => {
     wisKeuze("e"); state.edit = null; render();
   } else if (f.id === "form-nazicht") {
     const datum = $("#r-datum").value, ts = toestellenVan(state.site);
-    if (!datum || !ts.length) return;
+    if (!datum) return;
     knop.disabled = true;
     const id = crypto.randomUUID();
     await wacht([
       { actie: "upsert", tabel: "vigo_nazichten", rijen: [{ id, site: state.site, datum }] },
-      { actie: "upsert", tabel: "vigo_nazicht_toestellen", rijen: ts.map((t, i) => ({ id: crypto.randomUUID(), nazicht_id: id, volgorde: i, ...kopie(t) })) },
+      ...(ts.length ? [{ actie: "upsert", tabel: "vigo_nazicht_toestellen", rijen: ts.map((t, i) => ({ id: crypto.randomUUID(), nazicht_id: id, volgorde: i, ...kopie(t) })) }] : []),
     ], "Nazicht gestart");
     go("nazicht", { nazicht: id, filter: "alle", soort: "alle" });
   } else if (f.dataset.editForm) {
@@ -852,7 +854,8 @@ document.addEventListener("submit", async e => {
     if (leegToestel(d)) { $("#x-nummer").focus(); toast("Vul een nummer, merk, serienummer of omschrijving in"); return; }
     const t = { id: crypto.randomUUID(), site: r.site, ...d }, fotos = nieuweToestelFotos("x", t);
     const volgorde = Math.max(-1, ...itemsVan(r.id).map(p => p.volgorde)) + 1;
-    f.reset();
+    // Leegmaken voor het volgende toestel; soort en afdeling blijven staan (vaak dezelfde bij een ronde).
+    f.reset(); $("#x-soort").value = d.soort; $("#x-afdeling").value = d.afdeling;
     await wacht([...fotos,
       { actie: "upsert", tabel: "vigo_toestellen", rijen: [t] },
       { actie: "upsert", tabel: "vigo_nazicht_toestellen", rijen: [{ id: crypto.randomUUID(), nazicht_id: r.id, volgorde, ...kopie(t) }] },
