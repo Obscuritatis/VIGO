@@ -80,7 +80,7 @@ function laatsteResultaten() {
 }
 
 function go(view, extra = {}) {
-  wisKeuze("e");
+  ["e", "n", "x"].forEach(wisKeuze);
   state = { ...state, view, edit: null, confirm: null, editNazicht: false, plakken: false, nieuwToestel: false, ...extra };
   render();
   window.scrollTo({ top: 0 });
@@ -181,14 +181,14 @@ function toestelForm(p, pre) {
       <div class="field"><label class="lbl" for="${pre}-serienummer">Serienummer</label><input type="text" id="${pre}-serienummer" value="${esc(e.serienummer)}" placeholder="bv. 1234567890"></div>
       <div class="field"><label class="lbl" for="${pre}-afdeling">Afdeling</label><input type="text" id="${pre}-afdeling" value="${esc(e.afdeling)}" placeholder="bv. STE"></div>
       <div class="field wide"><label class="lbl" for="${pre}-omschrijving">Omschrijving</label><input type="text" id="${pre}-omschrijving" value="${esc(e.omschrijving)}" placeholder="bv. blauw, met beensteunen, staat in de berging"></div>
-      ${p ? `<div class="field wide"><span class="lbl">Foto's van het toestel (maximaal ${MAX_TOESTEL_FOTOS})</span>
+      <div class="field wide"><span class="lbl">Foto's van het toestel (maximaal ${MAX_TOESTEL_FOTOS})</span>
         <div class="foto-veld">
           ${fotoVoorbeelden(pre, { fotos: toestelFotos(p) })}
           <input type="file" accept="image/*" capture="environment" id="${pre}-camera" data-foto-input="${pre}" data-toestel>
           <label class="btn" for="${pre}-camera">Foto nemen</label>
           <input type="file" accept="image/*" multiple id="${pre}-bestand" data-foto-input="${pre}" data-toestel>
           <label class="btn" for="${pre}-bestand">Foto kiezen</label>
-        </div></div>` : ""}
+        </div></div>
     </div>`;
 }
 function leesToestelForm(pre) {
@@ -245,7 +245,6 @@ function viewInventaris(s) {
       ${nUit ? `<label class="check" style="font-size:.9rem"><input type="checkbox" data-toon-uit ${state.uitDienst ? "checked" : ""}> Ook uit dienst tonen (${nUit})</label>` : ""}</div>
     ${af ? `<p class="muted" style="margin:0">${esc(af)}</p>` : ""}
     ${state.nieuwToestel ? `<form class="panel" id="form-toestel"><h3>Nieuw toestel</h3>${toestelForm(null, "n")}
-      <p class="muted" style="margin:0">Een foto voeg je toe via Bewerken.</p>
       <div class="actions" style="justify-content:flex-end"><button type="button" class="btn" data-nieuw-stop>Annuleren</button><button class="btn primary" type="submit">Toevoegen</button></div></form>` : ""}
     ${!ready ? '<div class="empty">Laden…</div>' : rijen ? `<div class="list">${rijen}</div>` : `<div class="empty">${alle.length ? "Geen toestellen van deze soort." : "Nog geen toestellen in de inventaris."}</div>`}
   </div>`;
@@ -430,8 +429,9 @@ async function verklein(file) {
   return new Promise(ok => c.toBlob(b => ok(b || file), "image/jpeg", 0.8));
 }
 // Gekozen maar nog niet opgeslagen foto's in het formulier dat open staat.
-const fotoNieuw = { e: [] };            // [{ blob, url }]
-const fotoWeg = { e: new Set() };       // bestaande paden die weg moeten
+// "e": formulier dat open staat om te bewerken, "n": nieuw toestel in de inventaris, "x": extra toestel in een nazicht.
+const fotoNieuw = { e: [], n: [], x: [] };                          // [{ blob, url }]
+const fotoWeg = { e: new Set(), n: new Set(), x: new Set() };       // bestaande paden die weg moeten
 function fotoVoorbeelden(pre, p) {
   const bestaand = (p.fotos || []).filter(f => !fotoWeg[pre].has(f)).map(f =>
     `<div class="foto-keuze"><img class="duim" data-foto="${esc(f)}" alt="Huidige foto"><button type="button" data-foto-weg="${pre}" data-pad="${esc(f)}" aria-label="Foto verwijderen">×</button></div>`);
@@ -442,6 +442,13 @@ function fotoVoorbeelden(pre, p) {
 function wisKeuze(pre) {
   fotoNieuw[pre].forEach(f => URL.revokeObjectURL(f.url));
   fotoNieuw[pre] = []; fotoWeg[pre] = new Set();
+}
+// Foto's die bij een nieuw toestel gekozen zijn: ze gaan mee in de wachtrij en komen in foto en foto2.
+function nieuweToestelFotos(pre, t) {
+  const fotos = fotoNieuw[pre].slice(0, MAX_TOESTEL_FOTOS).map((f, i) => ({ actie: "foto", pad: `${t.site}/toestellen/${t.id}-${Date.now()}-${i}.jpg`, blob: f.blob }));
+  t.foto = fotos[0] ? fotos[0].pad : null; t.foto2 = fotos[1] ? fotos[1].pad : null;
+  wisKeuze(pre);
+  return fotos;
 }
 async function uploadNieuw(pre, map, id) {
   const paden = [];
@@ -652,7 +659,7 @@ async function laadAlles() {
 /* ---------- Offline werken ----------
    Alles wat je tijdens een nazicht doet (resultaat aanduiden, opmerkingen, foto's, een extra toestel, een nieuw nazicht,
    een toestel uit dienst zetten) gaat eerst naar een wachtrij op dit toestel (IndexedDB, met de foto's erbij) en wordt
-   verstuurd zodra er verbinding is. Het beheer van de inventaris vraagt wel verbinding. */
+   verstuurd zodra er verbinding is. Het bewerken en verwijderen van toestellen in de inventaris vraagt wel verbinding. */
 const raw = { vigo_toestellen: [], vigo_nazichten: [], vigo_nazicht_toestellen: [] };   // zoals laatst geladen uit Supabase
 const CACHE_SLEUTEL = "vigo-nazicht-gegevens";
 let wachtrij = [];          // [{k, actie: upsert|update|delete|foto|wis, tabel, rijen|id|data|pad|blob|paden}]
@@ -802,10 +809,9 @@ document.addEventListener("submit", async e => {
   } else if (f.id === "form-toestel") {
     const d = leesToestelForm("n");
     if (leegToestel(d)) { $("#n-nummer").focus(); toast("Vul een nummer, merk, serienummer of omschrijving in"); return; }
-    knop.disabled = true;
-    const ok = await write(() => sb.from("vigo_toestellen").insert({ id: crypto.randomUUID(), site: state.site, ...d }), "Toestel toegevoegd");
-    knop.disabled = false;
-    if (ok) { state.nieuwToestel = false; render(); }
+    const t = { id: crypto.randomUUID(), site: state.site, ...d }, fotos = nieuweToestelFotos("n", t);
+    state.nieuwToestel = false;
+    await wacht([...fotos, { actie: "upsert", tabel: "vigo_toestellen", rijen: [t] }], "Toestel toegevoegd");
   } else if (f.dataset.toestelForm) {
     const id = f.dataset.toestelForm, oud = toestellen.find(p => p.id === id); if (!oud) return;
     const d = leesToestelForm("e");
@@ -844,10 +850,10 @@ document.addEventListener("submit", async e => {
     const r = nazichten.find(x => x.id === state.nazicht); if (!r) return;
     const d = leesToestelForm("x");
     if (leegToestel(d)) { $("#x-nummer").focus(); toast("Vul een nummer, merk, serienummer of omschrijving in"); return; }
-    const t = { id: crypto.randomUUID(), site: r.site, ...d };
+    const t = { id: crypto.randomUUID(), site: r.site, ...d }, fotos = nieuweToestelFotos("x", t);
     const volgorde = Math.max(-1, ...itemsVan(r.id).map(p => p.volgorde)) + 1;
     f.reset();
-    await wacht([
+    await wacht([...fotos,
       { actie: "upsert", tabel: "vigo_toestellen", rijen: [t] },
       { actie: "upsert", tabel: "vigo_nazicht_toestellen", rijen: [{ id: crypto.randomUUID(), nazicht_id: r.id, volgorde, ...kopie(t) }] },
     ], "Toestel toegevoegd aan nazicht en inventaris");
@@ -869,7 +875,7 @@ document.addEventListener("change", async e => {
   if (!files.length) return;
   let ruimte = files.length;
   if ("toestel" in t.dataset) {
-    const oud = toestellen.find(p => "toestel:" + p.id === state.edit);
+    const oud = pre === "e" ? toestellen.find(p => "toestel:" + p.id === state.edit) : null;
     ruimte = MAX_TOESTEL_FOTOS - toestelFotos(oud).filter(f => !fotoWeg[pre].has(f)).length - fotoNieuw[pre].length;
     if (ruimte < files.length) toast(`Maximaal ${MAX_TOESTEL_FOTOS} foto's per toestel. Verwijder eerst een foto met ×.`);
   }
@@ -926,7 +932,7 @@ document.addEventListener("click", async e => {
   else if ("plakken" in d) { state.plakken = true; state.nieuwToestel = false; render(); $("#plak-tekst").focus(); }
   else if ("plakkenStop" in d) { state.plakken = false; render(); }
   else if ("nieuwToestel" in d) { state.nieuwToestel = true; render(); $("#n-nummer").focus(); }
-  else if ("nieuwStop" in d) { state.nieuwToestel = false; render(); }
+  else if ("nieuwStop" in d) { wisKeuze("n"); state.nieuwToestel = false; render(); }
   else if (d.delToestel) {
     // De foto blijft bewaard: oude nazichten kunnen er nog naar verwijzen.
     if (await write(() => sb.from("vigo_toestellen").delete().eq("id", d.delToestel), "Toestel verwijderd")) { state.confirm = null; render(); }
