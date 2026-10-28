@@ -1,9 +1,9 @@
 {
-  "id": "/vigo/",
+  "id": "./",
   "name": "Nazicht VIGO",
   "short_name": "VIGO",
-  "start_url": "/vigo/",
-  "scope": "/vigo/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f6f1e9",
   "theme_color": "#2e5c8a",

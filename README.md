@@ -35,7 +35,7 @@ en dezelfde aanmelding met een link per e-mail, maar eigen tabellen (`vigo_toest
    opnieuw uitgevoerd worden.
 2. **Toegang**: de app gebruikt dezelfde toegangslijst (`toegang`) als de veiligheidsrondes en de staalnamen.
 3. **Aanmeldlink**: voeg onder *Authentication > URL Configuration* een extra *Redirect URL* toe voor het adres
-   van deze app, bv. `https://obscuritatis.github.io/vigo/`. Laat de bestaande staan.
+   van deze app, bv. `https://obscuritatis.github.io/VIGO/`. Laat de bestaande staan.
 4. **GitHub Pages**: repository > *Settings > Pages* > *Deploy from a branch* > `main` / `(root)`.
 
 De koppeling met Supabase staat in [`config.js`](config.js). De app laadt niets van andere sites: de bibliotheken staan
