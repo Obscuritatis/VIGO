@@ -976,6 +976,34 @@ function bewaardeSessie() {
   } catch { return null; }
 }
 
+/* ---------- App installeren ----------
+   Chrome en Edge (Android, computer) geven een eigen installatievenster. Op iPhone/iPad (Safari) en in browsers zonder dat
+   venster tonen we hoe het via het menu van de browser gaat. Is de app al geïnstalleerd, dan verdwijnt de knop. */
+let installVraag = null;
+const alsApp = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isAndroid = /android/i.test(navigator.userAgent);
+function toonInstalleer() { $("#installeer").hidden = alsApp() || !(installVraag || isIos || isAndroid); }
+function installUitleg(html) {
+  const el = $("#install-uitleg");
+  el.innerHTML = html ? `<span>${html}</span><button class="btn small" type="button" data-install-sluit>Sluiten</button>` : "";
+  el.hidden = !html;
+}
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installVraag = e; toonInstalleer(); });
+addEventListener("appinstalled", () => { installVraag = null; installUitleg(""); toonInstalleer(); toast("App geïnstalleerd"); });
+document.addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if ("installSluit" in b.dataset) { installUitleg(""); return; }
+  if (b.id !== "installeer") return;
+  if (installVraag) {
+    installVraag.prompt();
+    await installVraag.userChoice.catch(() => null);
+    installVraag = null; toonInstalleer();
+  } else if (isIos) installUitleg("Tik in Safari op <strong>Deel</strong> (het vierkantje met de pijl omhoog) en kies <strong>Zet op beginscherm</strong>. Werk je in een andere browser, open deze pagina dan eerst in Safari.");
+  else installUitleg("Open het menu van je browser (<strong>⋮</strong> rechtsboven) en kies <strong>App installeren</strong> of <strong>Toevoegen aan startscherm</strong>.");
+});
+toonInstalleer();
+
 if ("serviceWorker" in navigator && !window.VIGO_DEMO) navigator.serviceWorker.register("sw.js").catch(e => console.error(e));
 render();
 (async () => {

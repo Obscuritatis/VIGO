@@ -59,7 +59,9 @@ h1 { font-size: 2rem; }
 h2 { font-size: 1.5rem; }
 h3 { font-size: 1.2rem; }
 .top { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
-.who { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: .85rem; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.rechts { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
+.install { display: flex; gap: 12px; align-items: start; justify-content: space-between; }
+.who { display: flex; align-items: center; gap: 10px; font-size: .85rem; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
 .login { max-width: 420px; }
 /* Offline / wijzigingen die nog verstuurd moeten worden */
 .sync { font-size: .8rem; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: var(--accent-bg); color: var(--accent); white-space: nowrap; }
@@ -208,8 +210,10 @@ button.duim-knop { padding: 0; border: 0; background: none; cursor: zoom-in; }
       <div class="eyebrow">Rolstoelen, rollators en krukken</div>
       <h1>Nazicht VIGO</h1>
     </div>
-    <div id="who" class="who" hidden><span id="sync" class="sync" role="status" hidden></span><span id="who-mail"></span><button class="btn small" id="logout" type="button">Afmelden</button></div>
+    <div class="rechts"><button class="btn small primary" id="installeer" type="button" hidden>App installeren</button>
+    <div id="who" class="who" hidden><span id="sync" class="sync" role="status" hidden></span><span id="who-mail"></span><button class="btn small" id="logout" type="button">Afmelden</button></div></div>
   </header>
+  <div id="install-uitleg" class="banner install" hidden></div>
   <div id="banner" class="banner" hidden></div>
   <main id="view"></main>
 </div>
