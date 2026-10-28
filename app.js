@@ -294,12 +294,15 @@ function viewNazicht() {
       <div class="punt-midden">
         <div style="display:grid;gap:6px;min-width:0">
           ${plaats(p) ? `<div class="meta">${esc(plaats(p))}</div>` : ""}
-          ${p.opmerkingen ? `<p>${esc(p.opmerkingen)}</p>` : ""}
+          ${p.opmerkingen && p.resultaat !== "herstel" ? `<p>${esc(p.opmerkingen)}</p>` : ""}
         </div>
         ${fotoDuims(refs, "Foto van het toestel")}
       </div>
       ${p.fotos.length ? `<div class="fotos">${p.fotos.map(f => fotoDuim(f, "Foto bij nazicht")).join("")}</div>` : ""}
       ${resultaatKnoppen(p)}
+      ${p.resultaat === "herstel" ? `<form class="herstel" data-herstel-form><label class="lbl" for="h-${p.id}">Wat moet vervangen of hersteld worden?</label>
+        <textarea id="h-${p.id}" data-herstel="${p.id}" placeholder="bv. rem links vervangen, voetsteun rechts los">${esc(p.opmerkingen)}</textarea>
+        <span class="meta">Wordt bewaard zodra je verder tikt.</span></form>` : ""}
       <div class="actions" style="justify-content:flex-end">${conf
         ? `<span class="muted" style="align-self:center">Toestel uit dit nazicht verwijderen?</span><button class="btn small danger" data-del-item="${p.id}">Ja, verwijderen</button><button class="btn small" data-confirm="">Nee</button>`
         : `${(p.resultaat === "afgekeurd" || p.resultaat === "niet-gevonden") && t && !t.uitDienst ? `<button class="btn small" data-uit-dienst="${t.id}" data-waarde="1" title="Komt dan niet meer in het volgende nazicht">Uit dienst zetten</button>` : ""}
@@ -873,6 +876,11 @@ document.addEventListener("change", async e => {
   const t = e.target;
   if (t.id === "plak-soort" || t.id === "plak-vervang") { toonPlakVoorbeeld(); return; }
   if ("toonUit" in t.dataset) { state.uitDienst = t.checked; render(); return; }
+  if (t.dataset.herstel) {
+    const p = items.find(x => x.id === t.dataset.herstel), tekst = t.value.trim();
+    if (p && tekst !== p.opmerkingen) await wacht([{ actie: "update", tabel: "vigo_nazicht_toestellen", id: p.id, data: { opmerkingen: tekst } }], "Opgeslagen");
+    return;
+  }
   if (!t.dataset.fotoInput) return;
   const pre = t.dataset.fotoInput, files = [...(t.files || [])];
   if (!files.length) return;
@@ -914,7 +922,10 @@ document.addEventListener("click", async e => {
   if (d.resultaat) {
     // Nog eens op het gekozen resultaat tikken maakt het weer leeg.
     const p = items.find(x => x.id === d.resultaat); if (!p) return;
-    await wacht([{ actie: "update", tabel: "vigo_nazicht_toestellen", id: p.id, data: { resultaat: p.resultaat === d.waarde ? "" : d.waarde } }]);
+    const nieuw = p.resultaat === d.waarde ? "" : d.waarde;
+    await wacht([{ actie: "update", tabel: "vigo_nazicht_toestellen", id: p.id, data: { resultaat: nieuw } }]);
+    // Bij "Herstel nodig" meteen het vak openen om te schrijven wat er moet gebeuren.
+    if (nieuw === "herstel") { const vak = document.getElementById("h-" + p.id); if (vak) { vak.focus(); vak.setSelectionRange(vak.value.length, vak.value.length); } }
     return;
   }
   if (d.uitDienst) {
@@ -1030,7 +1041,7 @@ render();
 // Niet opnieuw tekenen terwijl iemand een formulier invult; dat zou getypte tekst wissen.
 function renderSafe() {
   const a = document.activeElement;
-  const typing = a && a.matches && a.matches("input[type=text], textarea, select, input[type=date]") && a.value;
+  const typing = a && a.matches && a.matches("input[type=text], textarea, select, input[type=date]") && (a.value || a.dataset.herstel);
   if (typing) { clearTimeout(renderSafe.t); renderSafe.t = setTimeout(renderSafe, 1500); return; }
   render();
 }
