@@ -27,6 +27,21 @@ let toestellen = [];  // inventaris: {id, site, soort, nummer, merk, serienummer
 let nazichten = [];   // {id, site, datum, aangemaakt}
 let items = [];       // toestellen in een nazicht: {id, nazichtId, toestelId, volgorde, soort, nummer, merk, serienummer, afdeling, omschrijving, resultaat, opmerkingen, fotos[]}
 let state = { view: "sites", site: null, nazicht: null, filter: "alle", soort: "alle", edit: null, confirm: null, editNazicht: false, plakken: false, nieuwToestel: false, uitDienst: false };
+// Bij herladen terug naar dezelfde pagina (en scrollpositie) als daarnet.
+const PLEK_SLEUTEL = "vigo-nazicht-plek";
+let scrollTerug = null;
+try {
+  const plek = JSON.parse(localStorage.getItem(PLEK_SLEUTEL) || "null");
+  if (plek && SITES.some(x => x.id === plek.site) && (plek.view === "site" || (plek.view === "nazicht" && plek.nazicht))) {
+    Object.assign(state, { view: plek.view, site: plek.site, nazicht: plek.nazicht || null, filter: plek.filter || "alle", soort: plek.soort || "alle", uitDienst: !!plek.uitDienst });
+    scrollTerug = plek.scroll || 0;
+  }
+} catch {}
+function bewaarPlek() {
+  try { localStorage.setItem(PLEK_SLEUTEL, JSON.stringify({ view: state.view, site: state.site, nazicht: state.nazicht, filter: state.filter, soort: state.soort, uitDienst: state.uitDienst, scroll: Math.round(scrollY) })); } catch {}
+}
+addEventListener("scroll", () => { clearTimeout(bewaarPlek.t); bewaarPlek.t = setTimeout(bewaarPlek, 300); }, { passive: true });
+addEventListener("pagehide", bewaarPlek);
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -101,6 +116,9 @@ function render() {
   if (state.plakken) toonPlakVoorbeeld();
   lastKey = key;
   toonFotos();
+  bewaarPlek();
+  // Pas terugscrollen als de gegevens er zijn, anders is de pagina nog te kort.
+  if (scrollTerug !== null && ready) { const y = scrollTerug; scrollTerug = null; requestAnimationFrame(() => scrollTo(0, y)); }
 }
 
 function viewLogin() {
@@ -764,13 +782,14 @@ function zetSync() {
 
 // Bij het opstarten: de gegevens en wachtrij van de vorige keer, zodat de app ook zonder verbinding meteen werkt.
 async function laadBewaard(s) {
+  let bewaard = false;   // "ready" pas zetten na herbereken, anders lijkt een geopend nazicht even verdwenen
   try {
     const c = JSON.parse(localStorage.getItem(CACHE_SLEUTEL) || "null");
-    if (c && c.gebruiker === (s.user && s.user.email)) { TABELLEN.forEach(t => raw[t] = c[t] || []); ready = true; }
+    if (c && c.gebruiker === (s.user && s.user.email)) { TABELLEN.forEach(t => raw[t] = c[t] || []); bewaard = true; }
   } catch (e) { console.error(e); }
   try { wachtrij = ((await idb("readonly", st => st.getAll())) || []).sort((a, b) => a.k - b.k); } catch (e) { console.error(e); }
   laatsteK = Math.max(laatsteK, ...wachtrij.map(it => it.k));
-  herbereken(); zetSync(); render();
+  herbereken(); if (bewaard) ready = true; zetSync(); render();
 }
 
 async function write(fn, okMsg) {
