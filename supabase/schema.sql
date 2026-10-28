@@ -62,6 +62,8 @@ create table if not exists public.vigo_nazicht_toestellen (
   aangemaakt_door uuid default auth.uid()
 );
 alter table public.vigo_nazicht_toestellen add column if not exists serienummer text not null default '';
+-- "meegenomen": bij een afgekeurd toestel, of VIGO het meenam (leeg = nog niet aangeduid).
+alter table public.vigo_nazicht_toestellen add column if not exists meegenomen boolean;
 create index if not exists vigo_nazicht_toestellen_nazicht_idx on public.vigo_nazicht_toestellen(nazicht_id, volgorde);
 
 alter table public.vigo_toestellen enable row level security;

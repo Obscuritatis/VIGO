@@ -308,7 +308,7 @@ function viewNazicht() {
     return `<article class="staal ${res ? res.klasse : "te-doen"}">
       <div class="staal-top">
         <span class="subject"><span class="soort">${esc(soortVan(p.soort).naam)}</span> ${titel}</span>
-        ${resultaatPill(p.resultaat)}
+        <span class="stats">${resultaatPill(p.resultaat)}${p.resultaat === "afgekeurd" && p.meegenomen ? '<span class="pill weg">Meegenomen</span>' : ""}</span>
       </div>
       <div class="punt-midden">
         <div style="display:grid;gap:6px;min-width:0">
@@ -319,12 +319,15 @@ function viewNazicht() {
       </div>
       ${p.fotos.length ? `<div class="fotos">${p.fotos.map(f => fotoDuim(f, "Foto bij nazicht")).join("")}</div>` : ""}
       ${resultaatKnoppen(p)}
+      ${p.resultaat === "afgekeurd" ? `<div class="herstel"><span class="lbl">Meegenomen door VIGO?</span><div class="keuzes">
+        <button type="button" class="keuze weg" data-meegenomen="${p.id}" data-waarde="ja" aria-pressed="${p.meegenomen === true}">Ja, meegenomen</button>
+        <button type="button" class="keuze weg" data-meegenomen="${p.id}" data-waarde="nee" aria-pressed="${p.meegenomen === false}">Nee, blijft hier</button></div></div>` : ""}
       ${p.resultaat === "herstel" ? `<form class="herstel" data-herstel-form><label class="lbl" for="h-${p.id}">Wat moet vervangen of hersteld worden?</label>
         <textarea id="h-${p.id}" data-herstel="${p.id}" placeholder="bv. rem links vervangen, voetsteun rechts los">${esc(p.opmerkingen)}</textarea>
         <span class="meta">Wordt vanzelf bewaard terwijl je typt.</span></form>` : ""}
       <div class="actions" style="justify-content:flex-end">${conf
         ? `<span class="muted" style="align-self:center">Toestel uit dit nazicht verwijderen?</span><button class="btn small danger" data-del-item="${p.id}">Ja, verwijderen</button><button class="btn small" data-confirm="">Nee</button>`
-        : `${(p.resultaat === "afgekeurd" || p.resultaat === "niet-gevonden") && t && !t.uitDienst ? `<button class="btn small" data-uit-dienst="${t.id}" data-waarde="1" title="Komt dan niet meer in het volgende nazicht">Uit dienst zetten</button>` : ""}
+        : `${(p.resultaat === "afgekeurd" || p.resultaat === "niet-gevonden") && !p.meegenomen && t && !t.uitDienst ? `<button class="btn small" data-uit-dienst="${t.id}" data-waarde="1" title="Komt dan niet meer in het volgende nazicht">Uit dienst zetten</button>` : ""}
            <button class="btn small" data-edit="${p.id}">Opmerking of foto</button><button class="btn small danger" data-confirm="item:${p.id}">Verwijderen</button>`}</div>
     </article>`;
   }).join("");
@@ -551,7 +554,7 @@ async function exporteerNazicht(nazichtId) {
 
   for (let i = 0; i < lijst.length; i++) {
     const p = lijst[i], rijNr = KOP + 1 + i, rij = ws.getRow(rijNr), res = resultaatVan(p.resultaat);
-    const waarden = [i + 1, soortVan(p.soort).naam, p.nummer, p.merk, p.serienummer, p.afdeling, p.omschrijving, res ? res.naam : "Niet nagekeken"];
+    const waarden = [i + 1, soortVan(p.soort).naam, p.nummer, p.merk, p.serienummer, p.afdeling, p.omschrijving, res ? res.naam + (p.resultaat === "afgekeurd" && p.meegenomen !== null ? (p.meegenomen ? " – meegenomen door VIGO" : " – blijft op de site") : "") : "Niet nagekeken"];
     waarden.push(p.fotos.length > nFoto ? [p.opmerkingen, `(+${p.fotos.length - nFoto} foto's in de app)`].filter(Boolean).join("\n") : p.opmerkingen);
     for (let k = 0; k < nTst + nFoto; k++) waarden.push("");
     rij.values = waarden;
@@ -648,7 +651,7 @@ const toestelRij = r => ({ id: r.id, site: r.site, soort: r.soort, nummer: r.num
   omschrijving: r.omschrijving || "", foto: r.foto || null, foto2: r.foto2 || null, uitDienst: !!r.uit_dienst });
 const nazichtRij = r => ({ id: r.id, site: r.site, datum: r.datum, aangemaakt: r.aangemaakt });
 const itemRij = r => ({ id: r.id, nazichtId: r.nazicht_id, toestelId: r.toestel_id || null, volgorde: r.volgorde || 0, soort: r.soort, nummer: r.nummer || "",
-  merk: r.merk || "", serienummer: r.serienummer || "", afdeling: r.afdeling || "", omschrijving: r.omschrijving || "", resultaat: r.resultaat || "",
+  merk: r.merk || "", serienummer: r.serienummer || "", afdeling: r.afdeling || "", omschrijving: r.omschrijving || "", resultaat: r.resultaat || "", meegenomen: typeof r.meegenomen === "boolean" ? r.meegenomen : null,
   opmerkingen: r.opmerkingen || "", fotos: Array.isArray(r.fotos) ? r.fotos : [] });
 // Kopie van een toestel in een nazicht: latere wijzigingen aan de inventaris veranderen oude nazichten niet.
 const kopie = t => ({ toestel_id: t.id, soort: t.soort, nummer: t.nummer, merk: t.merk, serienummer: t.serienummer, afdeling: t.afdeling, omschrijving: t.omschrijving });
@@ -959,6 +962,16 @@ document.addEventListener("click", async e => {
     await wacht([{ actie: "update", tabel: "vigo_nazicht_toestellen", id: p.id, data: { resultaat: nieuw } }]);
     // Bij "Herstel nodig" meteen het vak openen om te schrijven wat er moet gebeuren.
     if (nieuw === "herstel") { const vak = document.getElementById("h-" + p.id); if (vak) { vak.focus(); vak.setSelectionRange(vak.value.length, vak.value.length); } }
+    return;
+  }
+  if (d.meegenomen) {
+    // Meegenomen door VIGO: het toestel is weg, dus meteen uit dienst. Nog eens tikken maakt de keuze leeg.
+    const p = items.find(x => x.id === d.meegenomen); if (!p) return;
+    const waarde = d.waarde === "ja", nieuw = p.meegenomen === waarde ? null : waarde;
+    const t = toestellen.find(x => x.id === p.toestelId);
+    await wacht([{ actie: "update", tabel: "vigo_nazicht_toestellen", id: p.id, data: { meegenomen: nieuw } },
+      ...(nieuw === true && t && !t.uitDienst ? [{ actie: "update", tabel: "vigo_toestellen", id: t.id, data: { uit_dienst: true } }] : [])],
+      nieuw === true ? "Meegenomen: het toestel staat nu uit dienst" : "");
     return;
   }
   if (d.uitDienst) {
