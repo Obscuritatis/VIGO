@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icoon.svg" type="image/svg+xml">
 <link rel="icon" href="icons/icoon-192.png" type="image/png" sizes="192x192">
 <link rel="apple-touch-icon" href="icons/icoon-180.png">
-<meta name="theme-color" content="#2e5c8a">
+<meta name="theme-color" content="#2f6f62">
 <meta name="apple-mobile-web-app-title" content="Nazicht VIGO">
 <style>
 /* Lettertypes staan op de site zelf (fonts/), zodat bezoekers geen verbinding met Google maken. */
@@ -19,40 +19,44 @@
 @font-face { font-family: "Nunito"; font-weight: 600; font-display: swap; src: url(fonts/nunito-latin-600-normal.woff2) format("woff2"); }
 @font-face { font-family: "Nunito"; font-weight: 700; font-display: swap; src: url(fonts/nunito-latin-700-normal.woff2) format("woff2"); }
 @font-face { font-family: "Nunito"; font-weight: 800; font-display: swap; src: url(fonts/nunito-latin-800-normal.woff2) format("woff2"); }
-/* Layout: smalle werkkolom; overzicht van sites → inventaris en nazichten van één site (breadcrumb-navigatie). Zelfde warme stijl als de staalnamen, met een staalblauw accent. */
+/* Layout: smalle werkkolom; overzicht van sites → inventaris en nazichten van één site (breadcrumb-navigatie). Warme stijl: crème achtergrond, groenblauw accent, elke soort en elke site een eigen kleur. */
 :root {
   --bg: #f6f1e9;
   --surface: #fffdf9;
   --fg: #2b2722;
   --muted: #776b5f;
   --line: #e7ddd0;
-  --accent: #2e5c8a;      /* staalblauw */
+  --accent: #2f6f62;      /* warm groenblauw */
   --accent-fg: #ffffff;
-  --accent-bg: #e3ecf5;
+  --accent-bg: #dfeee8;
+  --warm: #d08a2e;        /* oker */
+  --k-rolstoel: #2f6f62; --k-rollator: #b8661f; --k-looprek: #7b4f8f; --k-kruk: #a64a6a;
   --open: #b4492f;        /* terracotta */
   --shadow: 0 1px 2px rgba(80, 55, 30, .06), 0 4px 14px rgba(80, 55, 30, .05);
   --font-display: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --radius: 12px;
+  --radius: 16px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #1b1916; --surface: #25221e; --fg: #f1eae0; --muted: #b3a698; --line: #3b352f;
-    --accent: #8db6e3; --accent-fg: #0e1d2c; --accent-bg: #1c2a3a; --open: #ea8f72;
+    --accent: #86cdb9; --accent-fg: #0f2621; --accent-bg: #1f3530; --open: #ea8f72; --warm: #e6ad5c;
+    --k-rolstoel: #3f8f7f; --k-rollator: #b8702e; --k-looprek: #8a63a0; --k-kruk: #b05a78;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #1b1916; --surface: #25221e; --fg: #f1eae0; --muted: #b3a698; --line: #3b352f;
-  --accent: #8db6e3; --accent-fg: #0e1d2c; --accent-bg: #1c2a3a; --open: #ea8f72;
+  --accent: #86cdb9; --accent-fg: #0f2621; --accent-bg: #1f3530; --open: #ea8f72; --warm: #e6ad5c;
+  --k-rolstoel: #3f8f7f; --k-rollator: #b8702e; --k-looprek: #8a63a0; --k-kruk: #b05a78;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 img { max-width: 100%; }
-body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.55; }
+body { margin: 0; min-height: 100vh; background: radial-gradient(900px 420px at 10% -120px, color-mix(in srgb, var(--warm) 22%, transparent), transparent 70%), radial-gradient(800px 380px at 100% -80px, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%), var(--bg); background-repeat: no-repeat; color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.55; }
 .wrap { max-width: 920px; margin: 0 auto; padding: 24px 16px 64px; display: grid; gap: 24px; }
 h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing: -.01em; margin: 0; text-wrap: balance; line-height: 1.1; }
 h1 { font-size: 2rem; }
@@ -66,8 +70,8 @@ h3 { font-size: 1.2rem; }
 /* Offline / wijzigingen die nog verstuurd moeten worden */
 .sync { font-size: .8rem; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: var(--accent-bg); color: var(--accent); white-space: nowrap; }
 .sync.wacht { background: #fcefd6; color: #8a5300; }
-.sign { width: 44px; height: 44px; flex: none; border-radius: 14px; background: var(--accent); display: grid; place-items: center; }
-.sign svg { width: 24px; height: 24px; }
+.sign { width: 52px; height: 52px; flex: none; border-radius: 18px; background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--warm))); display: grid; place-items: center; box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 30%, transparent); transform: rotate(-4deg); }
+.sign svg { width: 28px; height: 28px; transform: rotate(4deg); }
 .eyebrow { font-size: .85rem; color: var(--muted); font-weight: 600; }
 .crumbs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: .9rem; color: var(--muted); }
 .crumbs button { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--accent); text-decoration: none; cursor: pointer; }
@@ -85,13 +89,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* Sites */
 .sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-.site { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; cursor: pointer; display: grid; gap: 10px; }
-.site:hover { border-color: var(--accent); }
+.site { --k: var(--accent); position: relative; overflow: hidden; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px 18px 18px; cursor: pointer; display: grid; gap: 10px; }
+.site::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 6px; background: linear-gradient(90deg, var(--k), color-mix(in srgb, var(--k) 45%, var(--warm))); }
+.site { isolation: isolate; }
+.site::after { content: ""; z-index: -1; position: absolute; right: -40px; top: -40px; width: 120px; height: 120px; border-radius: 50%; background: color-mix(in srgb, var(--k) 10%, transparent); pointer-events: none; }
+.site:hover { border-color: var(--k); }
 .kaart { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); display: grid; align-content: start; box-shadow: var(--shadow); }
 .kaart:hover { border-color: var(--accent); }
 .kaart > .site { border: 0; background: none; }
 .kaart-acties { padding: 0 16px 16px; display: flex; gap: 8px; }
-.site h3 { font-size: 1.3rem; }
+.site h3 { font-size: 1.3rem; color: color-mix(in srgb, var(--k) 60%, var(--fg)); }
 .stats { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill { display: inline-flex; align-items: center; gap: 4px; font-size: .78rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--accent-bg); color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .last { font-size: .85rem; color: var(--muted); }
@@ -149,7 +156,7 @@ button.duim-knop { padding: 0; border: 0; background: none; cursor: zoom-in; }
 .empty { border: 1px dashed var(--line); border-radius: var(--radius); padding: 24px 16px; text-align: center; color: var(--muted); }
 .banner { padding: 10px 14px; border-radius: var(--radius); background: #fcefd6; color: #8a5300; font-size: .9rem; }
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 16px; border-radius: 99px; font-size: .9rem; }
-@media (prefers-reduced-motion: no-preference) { .site, .kaart, .btn, .ronde { transition: border-color .15s, color .15s, filter .15s, transform .15s; } .kaart:hover, .ronde:hover { transform: translateY(-1px); } }
+@media (prefers-reduced-motion: no-preference) { .site, .kaart, .btn, .ronde, .keuze { transition: border-color .15s, color .15s, filter .15s, transform .15s, background-color .15s; } .site:hover, .kaart:hover, .ronde:hover { transform: translateY(-2px); } }
 
 /* Rondes en vaste punten */
 :root { --ok: #3d7a34; --ok-bg: #e5f0dc; --open-bg: #f8e4db; }
@@ -187,7 +194,14 @@ button.duim-knop { padding: 0; border: 0; background: none; cursor: zoom-in; }
 .staal.ok { border-left-color: var(--ok); }
 .staal.open { border-left-color: var(--open); }
 .staal.weg { border-left-color: var(--weg); }
-.soort { display: inline-block; font-size: .75rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: var(--accent); color: var(--accent-fg); vertical-align: 2px; white-space: nowrap; }
+.soort { --k: var(--accent); display: inline-block; font-size: .75rem; font-weight: 800; padding: 3px 10px; border-radius: 99px; background: color-mix(in srgb, var(--k) 15%, var(--surface)); color: color-mix(in srgb, var(--k) 80%, var(--fg)); vertical-align: 2px; white-space: nowrap; }
+.soort-rolstoel { --k: var(--k-rolstoel); } .soort-rollator { --k: var(--k-rollator); } .soort-looprek { --k: var(--k-looprek); } .soort-kruk { --k: var(--k-kruk); }
+.vast { border-left: 5px solid var(--k, var(--line)); }
+.pill[class*="soort-"] { background: color-mix(in srgb, var(--k) 14%, var(--surface)); color: color-mix(in srgb, var(--k) 80%, var(--fg)); }
+h3 { color: color-mix(in srgb, var(--accent) 35%, var(--fg)); }
+details.panel > summary { cursor: pointer; list-style: none; }
+details.panel > summary::before { content: "▸ "; color: var(--warm); }
+details.panel[open] > summary::before { content: "▾ "; }
 .vast > .soort { margin-top: 3px; min-width: 5.2em; text-align: center; }
 .site { align-content: start; }
 .vast.uit { opacity: .65; }

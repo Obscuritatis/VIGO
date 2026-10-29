@@ -1,8 +1,9 @@
+// "kleur": eigen kleur per site op het overzicht.
 const SITES = [
-  { id: "pz-tienen", naam: "Psychiatrisch ziekenhuis Tienen" },
-  { id: "wzc-sint-alexius", naam: "WZC Sint-Alexius" },
-  { id: "wzc-passionisten", naam: "WZC-Passionisten" },
-  { id: "wzc-huize-nazareth", naam: "WZC-Huize Nazareth",
+  { id: "pz-tienen", naam: "Psychiatrisch ziekenhuis Tienen", kleur: "#2f6f62" },
+  { id: "wzc-sint-alexius", naam: "WZC Sint-Alexius", kleur: "#c47a24" },
+  { id: "wzc-passionisten", naam: "WZC-Passionisten", kleur: "#7b4f8f" },
+  { id: "wzc-huize-nazareth", naam: "WZC-Huize Nazareth", kleur: "#a64a6a",
     afkortingen: "HH = Heilig Hart, STE = Sint-Elisabeth, STF = Sint-Franciscus, STJ = Sint-Jozef, TED = technische dienst" },
 ];
 // Soorten hulpmiddelen. "kop": herkent de soort in een geplakte Excel-cel.
@@ -152,8 +153,8 @@ function viewSites() {
   const cards = SITES.map(s => {
     const ts = toestellenVan(s.id), ns = nazichtenVan(s.id);
     const nOng = ongekendVan(s.id).length;
-    const pills = SOORTEN.map(so => `<span class="pill">${aantal(ts.filter(t => t.soort === so.id).length, so)}</span>`).join("") + (nOng ? `<span class="pill open">${nOng} status ongekend</span>` : "");
-    return `<button class="site" data-go-site="${s.id}"><h3>${esc(s.naam)}</h3>
+    const pills = SOORTEN.map(so => `<span class="pill soort-${so.id}">${aantal(ts.filter(t => t.soort === so.id).length, so)}</span>`).join("") + (nOng ? `<span class="pill open">${nOng} status ongekend</span>` : "");
+    return `<button class="site" data-go-site="${s.id}" style="--k:${s.kleur}"><h3>${esc(s.naam)}</h3>
       ${!ready ? '<div class="last">laden…</div>' : `<div class="stats">${pills}</div>
       <div class="last">${ns.length ? `Laatste nazicht ${fmtDate(ns[0].datum)}` : "Nog geen nazicht"}</div>
       ${ns.length ? `<div class="stats">${volgendNazicht(s.id)}</div>` : ""}`}
@@ -247,8 +248,8 @@ function viewInventaris(s) {
     if (state.edit === "toestel:" + p.id) return `<form class="panel" data-toestel-form="${p.id}"><h3>Toestel bewerken</h3>${toestelForm(p, "e")}
       <div class="actions" style="justify-content:flex-end"><button type="button" class="btn" data-cancel-edit>Annuleren</button><button class="btn primary" type="submit">Opslaan</button></div></form>`;
     const conf = state.confirm === "toestel:" + p.id, l = laatste.get(p.id);
-    return `<article class="vast ${p.uitDienst ? "uit" : ""}">
-      <span class="soort">${esc(soortVan(p.soort).naam)}</span>
+    return `<article class="vast soort-${esc(p.soort)} ${p.uitDienst ? "uit" : ""}">
+      <span class="soort soort-${esc(p.soort)}">${esc(soortVan(p.soort).naam)}</span>
       <div class="vast-tekst">
         <div class="subject">${esc(naam(p))}</div>
         ${plaats(p) ? `<div class="meta">${esc(plaats(p))}</div>` : ""}
@@ -281,8 +282,8 @@ function viewOngekend(s, nazichtId) {
   const lijst = ongekendVan(s);
   if (!lijst.length) return "";
   const groepen = perAfdeling(lijst).map(([afd, ts]) => `<div style="display:grid;gap:6px"><h4 style="margin:6px 0 0">${esc(afd)} (${ts.length})</h4>
-    <div class="list">${ts.map(p => `<article class="vast">
-      <span class="soort">${esc(soortVan(p.soort).naam)}</span>
+    <div class="list">${ts.map(p => `<article class="vast soort-${esc(p.soort)}">
+      <span class="soort soort-${esc(p.soort)}">${esc(soortVan(p.soort).naam)}</span>
       <div class="vast-tekst"><div class="subject">${esc(naam(p))}</div>${p.serienummer || p.omschrijving ? `<div class="meta">${esc([p.serienummer ? `Serienr. ${p.serienummer}` : "", p.omschrijving].filter(Boolean).join(" · "))}</div>` : ""}
         <div class="stats"><span class="pill open">Status ongekend</span></div></div>
       ${fotoDuims(toestelFotos(p), "Foto van het toestel")}
@@ -329,12 +330,12 @@ function viewNazicht() {
   const list = shown.map(p => {
     const refs = fotosVanItem(p), res = resultaatVan(p.resultaat);
     const titel = refs.length ? `<button type="button" class="titel-knop" data-groot="${esc(refs.join("|"))}" title="Foto van het toestel tonen">${esc(naam(p))}</button>` : esc(naam(p));
-    if (state.edit === p.id) return `<form class="panel" data-edit-form="${p.id}"><h3><span class="soort">${esc(soortVan(p.soort).naam)}</span> ${titel}</h3>${plaats(p) ? `<div class="meta">${esc(plaats(p))}</div>` : ""}${itemForm(p)}</form>`;
+    if (state.edit === p.id) return `<form class="panel" data-edit-form="${p.id}"><h3><span class="soort soort-${esc(p.soort)}">${esc(soortVan(p.soort).naam)}</span> ${titel}</h3>${plaats(p) ? `<div class="meta">${esc(plaats(p))}</div>` : ""}${itemForm(p)}</form>`;
     const conf = state.confirm === "item:" + p.id;
     const t = toestellen.find(x => x.id === p.toestelId);
     return `<article class="staal ${res ? res.klasse : "te-doen"}">
       <div class="staal-top">
-        <span class="subject"><span class="soort">${esc(soortVan(p.soort).naam)}</span> ${titel}</span>
+        <span class="subject"><span class="soort soort-${esc(p.soort)}">${esc(soortVan(p.soort).naam)}</span> ${titel}</span>
         <span class="stats">${resultaatPill(p.resultaat)}${p.resultaat === "afgekeurd" && p.meegenomen ? '<span class="pill weg">Meegenomen</span>' : ""}</span>
       </div>
       <div class="punt-midden">
