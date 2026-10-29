@@ -30,6 +30,8 @@ create table if not exists public.vigo_toestellen (
   aangemaakt_door uuid default auth.uid()
 );
 alter table public.vigo_toestellen add column if not exists serienummer text not null default '';
+-- "ongekend": vroeger gelabeld, maar niet aangeboden bij het nazicht; komt niet in een nieuw nazicht tot het teruggevonden is.
+alter table public.vigo_toestellen add column if not exists ongekend boolean not null default false;
 create index if not exists vigo_toestellen_site_idx on public.vigo_toestellen(site, soort);
 
 -- Een nazicht: VIGO komt één keer per jaar langs op een site.

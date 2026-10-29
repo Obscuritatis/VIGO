@@ -23,7 +23,7 @@ const RESULTATEN = [
 const BUCKET = "vigo-fotos";
 
 let sb = null, sessie = null, ready = false;
-let toestellen = [];  // inventaris: {id, site, soort, nummer, merk, serienummer, afdeling, omschrijving, foto, foto2, uitDienst}
+let toestellen = [];  // inventaris: {id, site, soort, nummer, merk, serienummer, afdeling, omschrijving, foto, foto2, uitDienst, ongekend}
 let nazichten = [];   // {id, site, datum, aangemaakt}
 let items = [];       // toestellen in een nazicht: {id, nazichtId, toestelId, volgorde, soort, nummer, merk, serienummer, afdeling, omschrijving, resultaat, opmerkingen, fotos[]}
 let state = { view: "sites", site: null, nazicht: null, filter: "alle", soort: "alle", edit: null, confirm: null, editNazicht: false, plakken: false, nieuwToestel: false, uitDienst: false };
@@ -58,7 +58,12 @@ const aantal = (n, s) => `${n} ${(n === 1 ? s.naam : s.meervoud).toLowerCase()}`
 const vergelijk = (a, b) => SOORTEN.findIndex(s => s.id === a.soort) - SOORTEN.findIndex(s => s.id === b.soort)
   || (a.nummer || "").localeCompare(b.nummer || "", "nl", { numeric: true })
   || (a.afdeling || "").localeCompare(b.afdeling || "", "nl", { numeric: true });
-const toestellenVan = (site, metUitDienst = false) => toestellen.filter(t => t.site === site && (metUitDienst || !t.uitDienst)).sort(vergelijk);
+// Standaard alleen toestellen in dienst; met "alles" ook uit dienst en status ongekend.
+const toestellenVan = (site, alles = false) => toestellen.filter(t => t.site === site && (alles || (!t.uitDienst && !t.ongekend))).sort(vergelijk);
+// Status ongekend: vroeger gelabeld, maar niet aangeboden bij het nazicht. Komen niet in een nieuw nazicht.
+const ongekendVan = site => toestellen.filter(t => t.site === site && t.ongekend && !t.uitDienst)
+  .sort((a, b) => (a.afdeling || "").localeCompare(b.afdeling || "", "nl", { numeric: true }) || vergelijk(a, b));
+const perAfdeling = lijst => { const m = new Map(); for (const t of lijst) { const k = t.afdeling || "Zonder afdeling"; if (!m.has(k)) m.set(k, []); m.get(k).push(t); } return [...m]; };
 const nazichtenVan = site => nazichten.filter(n => n.site === site).sort((a, b) => (b.datum || "").localeCompare(a.datum || "") || (b.aangemaakt || "").localeCompare(a.aangemaakt || ""));
 const itemsVan = nazichtId => items.filter(p => p.nazichtId === nazichtId).sort((a, b) => a.volgorde - b.volgorde);
 const nagekeken = p => !!resultaatVan(p.resultaat);
@@ -146,7 +151,8 @@ function volgendNazicht(site) {
 function viewSites() {
   const cards = SITES.map(s => {
     const ts = toestellenVan(s.id), ns = nazichtenVan(s.id);
-    const pills = SOORTEN.map(so => `<span class="pill">${aantal(ts.filter(t => t.soort === so.id).length, so)}</span>`).join("");
+    const nOng = ongekendVan(s.id).length;
+    const pills = SOORTEN.map(so => `<span class="pill">${aantal(ts.filter(t => t.soort === so.id).length, so)}</span>`).join("") + (nOng ? `<span class="pill open">${nOng} status ongekend</span>` : "");
     return `<button class="site" data-go-site="${s.id}"><h3>${esc(s.naam)}</h3>
       ${!ready ? '<div class="last">laden…</div>' : `<div class="stats">${pills}</div>
       <div class="last">${ns.length ? `Laatste nazicht ${fmtDate(ns[0].datum)}` : "Nog geen nazicht"}</div>
@@ -173,7 +179,7 @@ function viewSite() {
   const lijst = ns.map(n => `<button class="ronde" data-go-nazicht="${n.id}"><span class="date">${fmtDate(n.datum)}</span><span class="stats">${voortgang(itemsVan(n.id))}</span></button>`).join("");
   const nieuw = `<form class="panel" id="form-nazicht"><h3>Nieuw nazicht door VIGO</h3>
         <p class="muted" style="margin:0">${ts.length
-          ? `Het nazicht krijgt de ${ts.length} toestellen uit de inventaris hieronder (${SOORTEN.map(so => aantal(ts.filter(t => t.soort === so.id).length, so)).join(", ")}). Toestellen die VIGO onderweg vindt, voeg je in het nazicht toe.`
+          ? `Het nazicht krijgt de ${ts.length} toestellen uit de inventaris hieronder (${SOORTEN.map(so => aantal(ts.filter(t => t.soort === so.id).length, so)).join(", ")}). Toestellen die VIGO onderweg vindt, voeg je in het nazicht toe.${ongekendVan(s).length ? ` De ${ongekendVan(s).length} toestellen met status ongekend komen er niet in; vind je er een terug, tik dan in het nazicht op Teruggevonden.` : ""}`
           : "De inventaris is nog leeg. Start het nazicht en voeg de toestellen toe terwijl je met VIGO rondgaat: ze komen meteen ook in de inventaris."}</p>
         <div class="row">
           <div class="field" style="flex:0 1 180px"><label class="lbl" for="r-datum">Datum</label><input type="date" id="r-datum" required value="${today()}"></div>
@@ -223,7 +229,7 @@ function leesToestelForm(pre) {
 const leegToestel = d => !d.nummer && !d.merk && !d.serienummer && !d.omschrijving;
 
 function viewInventaris(s) {
-  const alle = toestellenVan(s, true), actief = alle.filter(t => !t.uitDienst), nUit = alle.length - actief.length;
+  const alle = toestellenVan(s, true).filter(t => !t.ongekend || t.uitDienst), actief = alle.filter(t => !t.uitDienst), nUit = alle.length - actief.length;
   if (state.plakken) return `<form class="panel" id="form-plak">
       <h3>Toestellen plakken uit Excel</h3>
       <p class="muted" style="margin:0">Selecteer in Excel de rijen met de toestellen, samen met de kolomtitels, kopieer ze en plak ze hieronder.
@@ -231,7 +237,7 @@ function viewInventaris(s) {
       <div class="row"><div class="field" style="flex:0 1 260px"><label class="lbl" for="plak-soort">Soort als die niet in de rij staat</label>
         <select id="plak-soort">${SOORTEN.map(so => `<option value="${so.id}" ${state.soort === so.id ? "selected" : ""}>${esc(so.naam)}</option>`).join("")}</select></div></div>
       <div class="field wide"><label class="lbl" for="plak-tekst">Geplakt uit Excel</label><textarea id="plak-tekst" style="min-height:140px;font-family:ui-monospace,monospace;font-size:.85rem" placeholder="Plak hier (Ctrl+V)"></textarea></div>
-      ${alle.length ? `<label class="check"><input type="checkbox" id="plak-vervang"> De ${alle.length} bestaande toestellen eerst verwijderen (hun foto's ook)</label>` : ""}
+      ${toestellenVan(s, true).length ? `<label class="check"><input type="checkbox" id="plak-vervang"> De ${toestellenVan(s, true).length} bestaande toestellen eerst verwijderen (hun foto's ook)</label>` : ""}
       <div id="plak-voorbeeld"></div>
       <div class="actions" style="justify-content:flex-end"><button type="button" class="btn" data-plakken-stop>Annuleren</button><button class="btn primary" type="submit">Toestellen opslaan</button></div>
     </form>`;
@@ -266,7 +272,28 @@ function viewInventaris(s) {
     ${state.nieuwToestel ? `<form class="panel" id="form-toestel"><h3>Nieuw toestel</h3>${toestelForm(null, "n")}
       <div class="actions" style="justify-content:flex-end"><button type="button" class="btn" data-nieuw-stop>Annuleren</button><button class="btn primary" type="submit">Toevoegen</button></div></form>` : ""}
     ${!ready ? '<div class="empty">Laden…</div>' : rijen ? `<div class="list">${rijen}</div>` : `<div class="empty">${alle.length ? "Geen toestellen van deze soort." : "Nog geen toestellen in de inventaris."}</div>`}
+    ${ready ? viewOngekend(s, null) : ""}
   </div>`;
+}
+
+// Sectie "Status ongekend", per afdeling. In een nazicht zet Teruggevonden het toestel ook meteen in dat nazicht.
+function viewOngekend(s, nazichtId) {
+  const lijst = ongekendVan(s);
+  if (!lijst.length) return "";
+  const groepen = perAfdeling(lijst).map(([afd, ts]) => `<div style="display:grid;gap:6px"><h4 style="margin:6px 0 0">${esc(afd)} (${ts.length})</h4>
+    <div class="list">${ts.map(p => `<article class="vast">
+      <span class="soort">${esc(soortVan(p.soort).naam)}</span>
+      <div class="vast-tekst"><div class="subject">${esc(naam(p))}</div>${p.serienummer || p.omschrijving ? `<div class="meta">${esc([p.serienummer ? `Serienr. ${p.serienummer}` : "", p.omschrijving].filter(Boolean).join(" · "))}</div>` : ""}
+        <div class="stats"><span class="pill open">Status ongekend</span></div></div>
+      ${fotoDuims(toestelFotos(p), "Foto van het toestel")}
+      <div class="actions vast-acties"><button class="btn small primary" data-gevonden="${p.id}"${nazichtId ? ` data-nazicht-id="${nazichtId}"` : ""} title="${nazichtId ? "Komt in dit nazicht en terug in de inventaris" : "Komt terug in de inventaris"}">Teruggevonden</button>
+        <button class="btn small" data-uit-dienst="${p.id}" data-waarde="1" title="Definitief weg">Uit dienst</button></div>
+    </article>`).join("")}</div></div>`).join("");
+  return `<details class="panel" ${nazichtId ? "" : "open"} style="display:grid;gap:10px">
+    <summary><h3 style="display:inline">Status ongekend (${lijst.length})</h3></summary>
+    <p class="muted" style="margin:0">Vroeger gelabeld, maar niet aangeboden bij het nazicht. Ze komen niet in een nieuw nazicht. Vind je er een terug, tik dan op Teruggevonden.</p>
+    ${groepen}
+  </details>`;
 }
 
 function resultaatKnoppen(p) {
@@ -366,6 +393,7 @@ function viewNazicht() {
       ${all.length ? "" : extra}
     </div>
     ${all.length ? extra : ""}
+    ${viewOngekend(r.site, r.id)}
   </div>`;
 }
 
@@ -613,8 +641,8 @@ async function downloadExcel(wb, bestandsnaam) {
 async function exporteerInventaris(site) {
   let ExcelJS;
   try { ExcelJS = await laadExcelJS(); } catch { toast("Excel-export kon niet geladen worden. Controleer je internetverbinding."); return; }
-  const lijst = toestellenVan(site), laatste = laatsteResultaten();
-  const kolommen = [["Nr", 5], ["Soort", 11], ["Nummer", 12], ["Merk en type", 24], ["Serienummer", 16], ["Afdeling", 14], ["Omschrijving", 32], ["Laatste nazicht", 14], ["Resultaat", 15]];
+  const lijst = [...toestellenVan(site), ...ongekendVan(site)], laatste = laatsteResultaten();
+  const kolommen = [["Nr", 5], ["Soort", 11], ["Nummer", 12], ["Merk en type", 24], ["Serienummer", 16], ["Afdeling", 14], ["Omschrijving", 32], ["Laatste nazicht", 14], ["Resultaat", 15], ["Status ongekend", 15]];
   const fotoKol = kolommen.length, nTst = Math.max(0, ...lijst.map(p => toestelFotos(p).length));
   for (let i = 0; i < nTst; i++) kolommen.push([nTst === 1 ? "Foto" : `Foto ${i + 1}`, 24]);
   const n = kolommen.length;
@@ -624,14 +652,14 @@ async function exporteerInventaris(site) {
   const ws = wb.addWorksheet("Inventaris", { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 } });
   ws.columns = kolommen.map(([, w]) => ({ width: w }));
   xlTitel(ws, `Inventaris hulpmiddelen – ${siteNaam(site)}`, n);
-  const KOP = xlInfo(ws, [["Site", siteNaam(site)], ["Aantal", [...SOORTEN.map(so => aantal(lijst.filter(t => t.soort === so.id).length, so)), `totaal ${lijst.length}`].join(" · ")], ["Geëxporteerd op", new Date().toLocaleString("nl-BE")]], n);
+  const KOP = xlInfo(ws, [["Site", siteNaam(site)], ["Aantal", [...SOORTEN.map(so => aantal(lijst.filter(t => t.soort === so.id).length, so)), `totaal ${lijst.length}`, ...(lijst.some(t => t.ongekend) ? [`waarvan ${lijst.filter(t => t.ongekend).length} status ongekend`] : [])].join(" · ")], ["Geëxporteerd op", new Date().toLocaleString("nl-BE")]], n);
   xlKop(ws.getRow(KOP), kolommen, () => "left");
   ws.views = [{ state: "frozen", ySplit: KOP }];
   ws.pageSetup.printTitlesRow = `${KOP}:${KOP}`;
   const rand = { style: "thin", color: { argb: XL.rand } };
   for (let i = 0; i < lijst.length; i++) {
     const p = lijst[i], rijNr = KOP + 1 + i, rij = ws.getRow(rijNr), l = laatste.get(p.id);
-    rij.values = [i + 1, soortVan(p.soort).naam, p.nummer, p.merk, p.serienummer, p.afdeling, p.omschrijving, l ? fmtDate(l.datum) : "", l ? resultaatVan(l.resultaat).naam : "", ...Array(nTst).fill("")];
+    rij.values = [i + 1, soortVan(p.soort).naam, p.nummer, p.merk, p.serienummer, p.afdeling, p.omschrijving, l ? fmtDate(l.datum) : "", l ? resultaatVan(l.resultaat).naam : "", p.ongekend ? "Ja" : "", ...Array(nTst).fill("")];
     rij.eachCell({ includeEmpty: true }, cel => {
       cel.alignment = { vertical: "top", horizontal: "left", wrapText: true };
       cel.border = { top: rand, bottom: rand, left: rand, right: rand };
@@ -648,7 +676,7 @@ async function exporteerInventaris(site) {
 
 /* ---------- Opslag (Supabase) ---------- */
 const toestelRij = r => ({ id: r.id, site: r.site, soort: r.soort, nummer: r.nummer || "", merk: r.merk || "", serienummer: r.serienummer || "", afdeling: r.afdeling || "",
-  omschrijving: r.omschrijving || "", foto: r.foto || null, foto2: r.foto2 || null, uitDienst: !!r.uit_dienst });
+  omschrijving: r.omschrijving || "", foto: r.foto || null, foto2: r.foto2 || null, uitDienst: !!r.uit_dienst, ongekend: !!r.ongekend });
 const nazichtRij = r => ({ id: r.id, site: r.site, datum: r.datum, aangemaakt: r.aangemaakt });
 const itemRij = r => ({ id: r.id, nazichtId: r.nazicht_id, toestelId: r.toestel_id || null, volgorde: r.volgorde || 0, soort: r.soort, nummer: r.nummer || "",
   merk: r.merk || "", serienummer: r.serienummer || "", afdeling: r.afdeling || "", omschrijving: r.omschrijving || "", resultaat: r.resultaat || "", meegenomen: typeof r.meegenomen === "boolean" ? r.meegenomen : null,
@@ -881,6 +909,17 @@ document.addEventListener("submit", async e => {
     const r = nazichten.find(x => x.id === state.nazicht); if (!r) return;
     const d = leesToestelForm("x");
     if (leegToestel(d)) { $("#x-nummer").focus(); toast("Vul een nummer, merk, serienummer of omschrijving in"); return; }
+    // Nummer van een toestel met status ongekend: dat toestel is teruggevonden, geen nieuw toestel maken.
+    const zonderNullen = n => n.replace(/^0+(?=.)/, "").toLowerCase();
+    const terug = d.nummer && ongekendVan(r.site).find(x => x.soort === d.soort && zonderNullen(x.nummer) === zonderNullen(d.nummer));
+    if (terug) {
+      f.reset(); $("#x-soort").value = d.soort; $("#x-afdeling").value = d.afdeling;
+      const volgorde = Math.max(-1, ...itemsVan(r.id).map(p => p.volgorde)) + 1;
+      await wacht([{ actie: "update", tabel: "vigo_toestellen", id: terug.id, data: { ongekend: false } },
+        { actie: "upsert", tabel: "vigo_nazicht_toestellen", rijen: [{ id: crypto.randomUUID(), nazicht_id: r.id, volgorde, ...kopie(terug) }] }],
+        "Dit toestel had status ongekend: teruggevonden en toegevoegd aan het nazicht");
+      return;
+    }
     const t = { id: crypto.randomUUID(), site: r.site, ...d }, fotos = nieuweToestelFotos("x", t);
     const volgorde = Math.max(-1, ...itemsVan(r.id).map(p => p.volgorde)) + 1;
     // Leegmaken voor het volgende toestel; soort en afdeling blijven staan (vaak dezelfde bij een ronde).
@@ -972,6 +1011,16 @@ document.addEventListener("click", async e => {
     await wacht([{ actie: "update", tabel: "vigo_nazicht_toestellen", id: p.id, data: { meegenomen: nieuw } },
       ...(nieuw === true && t && !t.uitDienst ? [{ actie: "update", tabel: "vigo_toestellen", id: t.id, data: { uit_dienst: true } }] : [])],
       nieuw === true ? "Meegenomen: het toestel staat nu uit dienst" : "");
+    return;
+  }
+  if (d.gevonden) {
+    // Teruggevonden: terug in de inventaris, en in een open nazicht meteen ook in dat nazicht.
+    const t = toestellen.find(x => x.id === d.gevonden); if (!t) return;
+    const r = d.nazichtId && nazichten.find(x => x.id === d.nazichtId);
+    const volgorde = r ? Math.max(-1, ...itemsVan(r.id).map(p => p.volgorde)) + 1 : 0;
+    await wacht([{ actie: "update", tabel: "vigo_toestellen", id: t.id, data: { ongekend: false } },
+      ...(r ? [{ actie: "upsert", tabel: "vigo_nazicht_toestellen", rijen: [{ id: crypto.randomUUID(), nazicht_id: r.id, volgorde, ...kopie(t) }] }] : [])],
+      r ? "Teruggevonden: het toestel staat nu in dit nazicht" : "Teruggevonden: terug in de inventaris");
     return;
   }
   if (d.uitDienst) {
