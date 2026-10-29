@@ -604,10 +604,51 @@ async function exporteerNazicht(nazichtId) {
   if (lijst.length) ws.autoFilter = { from: { row: KOP, column: 1 }, to: { row: KOP + lijst.length, column: opmKol } };
   else ws.getCell(`A${KOP + 1}`).value = "Geen toestellen in dit nazicht.";
 
+  await tabNietGevonden(wb, r, lijst);
   await downloadExcel(wb, `Nazicht VIGO ${siteNaam(r.site)} ${r.datum}.xlsx`);
 }
+// Apart tabblad voor de dienst: wat niet gevonden werd bij dit nazicht en wat nog status ongekend heeft, per afdeling.
+// De laatste kolom is leeg, zodat de dienst kan noteren waar het toestel teruggevonden werd.
+async function tabNietGevonden(wb, r, lijst) {
+  const zoek = [
+    ...lijst.filter(p => p.resultaat === "niet-gevonden" && !(toestellen.find(t => t.id === p.toestelId) || {}).uitDienst).map(p => ({ ...p, status: "Niet gevonden bij dit nazicht", tst: fotosVanItem(p) })),
+    ...ongekendVan(r.site).filter(t => !lijst.some(p => p.toestelId === t.id)).map(t => ({ ...t, status: "Status ongekend (vroeger gelabeld)", tst: toestelFotos(t) })),
+  ].sort((a, b) => (a.afdeling || "").localeCompare(b.afdeling || "", "nl", { numeric: true }) || vergelijk(a, b));
+  const kolommen = [["Nr", 5], ["Afdeling", 18], ["Soort", 11], ["Nummer", 12], ["Merk en type", 22], ["Serienummer", 16], ["Omschrijving", 26], ["Status", 22], ["Teruggevonden waar en wanneer?", 34]];
+  const nTst = Math.max(0, ...zoek.map(p => p.tst.length));
+  for (let i = 0; i < nTst; i++) kolommen.push([nTst === 1 ? "Foto toestel" : `Foto toestel ${i + 1}`, 24]);
+  const n = kolommen.length, invulKol = 9;
+  const ws = wb.addWorksheet("Niet gevonden", { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 } });
+  ws.columns = kolommen.map(([, w]) => ({ width: w }));
+  xlTitel(ws, `Te zoeken toestellen – ${siteNaam(r.site)}`, n);
+  ws.properties.tabColor = { argb: XL.open };
+  const afd = perAfdeling(zoek).map(([a, ts]) => `${a}: ${ts.length}`).join(" · ");
+  const KOP = xlInfo(ws, [["Site", siteNaam(r.site)], ["Nazicht", fmtDate(r.datum)], ["Aantal", `${zoek.length}${afd ? ` (${afd})` : ""}`],
+    ["Vraag", "Zoek deze toestellen op je afdeling. Gevonden? Noteer waar en wanneer, en meld het aan de verantwoordelijke hulpmiddelen."]], n);
+  xlKop(ws.getRow(KOP), kolommen, () => "left");
+  ws.views = [{ state: "frozen", ySplit: KOP }];
+  ws.pageSetup.printTitlesRow = `${KOP}:${KOP}`;
+  const rand = { style: "thin", color: { argb: XL.rand } };
+  for (let i = 0; i < zoek.length; i++) {
+    const p = zoek[i], rijNr = KOP + 1 + i, rij = ws.getRow(rijNr);
+    rij.values = [i + 1, p.afdeling, soortVan(p.soort).naam, p.nummer, p.merk, p.serienummer, p.omschrijving, p.status, "", ...Array(nTst).fill("")];
+    rij.eachCell({ includeEmpty: true }, cel => {
+      cel.alignment = { vertical: "top", horizontal: "left", wrapText: true };
+      cel.border = { top: rand, bottom: rand, left: rand, right: rand };
+      if (i % 2) cel.fill = xlVul(XL.zebra);
+    });
+    rij.getCell(1).font = { bold: true, color: { argb: XL.accent } };
+    rij.getCell(2).font = { bold: true };
+    rij.getCell(8).font = { bold: true, color: { argb: XL.open } };
+    rij.getCell(invulKol).fill = xlVul("FFFFFDF0");
+    rij.height = 30;
+    for (let k = 0; k < p.tst.length; k++) await fotoInCel(wb, ws, rij, rijNr, invulKol + k, p.tst[k]);
+  }
+  if (zoek.length) ws.autoFilter = { from: { row: KOP, column: 1 }, to: { row: KOP + zoek.length, column: invulKol } };
+  else ws.getCell(`A${KOP + 1}`).value = "Alle toestellen zijn gevonden.";
+}
 // Huisstijl van de Excel-bestanden: dezelfde kleuren als de app.
-const XL = { accent: "FF2E5C8A", accentLicht: "FFE3ECF5", zebra: "FFFBF7F1", rand: "FFE7DDD0", grijs: "FF776B5F", ok: "FF3D7A34", okBg: "FFE5F0DC", open: "FFB4492F", openBg: "FFF8E4DB", wegBg: "FFEDE8E1" };
+const XL = { accent: "FF2F6F62", accentLicht: "FFDFEEE8", zebra: "FFFBF7F1", rand: "FFE7DDD0", grijs: "FF776B5F", ok: "FF3D7A34", okBg: "FFE5F0DC", open: "FFB4492F", openBg: "FFF8E4DB", wegBg: "FFEDE8E1" };
 const xlVul = argb => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
 function xlTitel(ws, tekst, n) {
   ws.properties.tabColor = { argb: XL.accent };
